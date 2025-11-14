@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoltaTech University Portal</title>
+  <link rel="stylesheet" href="project/assets/css/bootstrap.min.css">
+  <link rel="stylesheet" href="project/assets/css/style.css">
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, rgba(13,110,253,0.1), rgba(13,110,253,0.3));
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .landing-card {
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
+      padding: 40px;
+      max-width: 480px;
+      width: 100%;
+      text-align: center;
+    }
+    .landing-card h1 {
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #0b1f4b;
+    }
+    .landing-card p {
+      color: #475569;
+      margin-bottom: 32px;
+      font-size: 1rem;
+    }
+    .landing-links {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .landing-links a {
+      border-radius: 10px;
+      padding: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .landing-footer {
+      margin-top: 24px;
+      font-size: 0.85rem;
+      color: #94a3b8;
+    }
+    .btn-primary {
+    color: #fff;
+    background-color: #0d6efd;
+    border: 2px solid #002efd;
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
+    transition: all 0.3s ease;
+    }
+    .btn-primary:hover {
+      background-color: #002efd;
+      transform: scale(1.1);
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
+    }
+    .btn-outline-primary {
+      color: blue;
+      border: 2px solid #002efd;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
+      transition: all 0.3s ease;
+    }
+    .btn-outline-primary:hover {
+      background-color: #002efd;
+      color: #fff;
+      transform: scale(1.1);
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15);
+    }
+  </style>
+</head>
+<body>
+  <div class="landing-card">
+    <h1>VoltaTech University</h1>
+    <div class="landing-links">
+      <a class="btn btn-primary" href="login.php">Log In to Portal</a>
+      <a class="btn btn-outline-primary" href="admissions/apply.php">Admissions &amp; Applications</a>
+    </div>
+    <div class="landing-footer">
+      Need help? Contact the university ICT support desk.
+    </div>
+  </div>
+</body>
+</html>

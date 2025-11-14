@@ -1,0 +1,207 @@
+University Management System – Live Presentation Script
+
+1. Opening (30–60 seconds)
+
+Introduce yourself and the project in one sentence:
+“This is a University Management System that manages the full student lifecycle from admissions to graduation, with automation around enrollment rules and post‑graduation access.”
+
+State the main goals:
+1) Reduce manual work for admins and instructors.
+2) Enforce academic rules automatically (levels, prerequisites, graduation).
+3) Give students a self‑service portal for their academic record.
+
+------------------------------------------------------------
+2. What the system does (high‑level)
+
+There are three main roles:
+- Admin: manages departments, programs, courses, students, enrollments, finance, and notifications.
+- Instructor: manages their course sections, attendance, grades, and student enrollment into their sections.
+- Student: sees a dashboard, enrolls in courses, checks grades, fees, and progress.
+
+The system covers the full lifecycle:
+1) Applicant applies and is accepted.
+2) Student account is created and the student finalizes registration.
+3) Student enrolls in courses, but only courses allowed for their department and level.
+4) Instructors grade and finalize sections.
+5) Level 400 students graduate. Their accounts stay active for a short grace period, then are locked automatically.
+
+Key message:
+Admins, instructors, and students all work in the same system, but each with their own view and permissions.
+
+------------------------------------------------------------
+3. Demo flow (what to show, in order)
+
+3.1 Admin view – overview and admissions (about 2–3 minutes)
+
+Step 1: Login as admin.
+- Show the admin dashboard (total users, students, courses, etc.).
+- Mention that only admins can see this console because of role‑based access.
+
+Step 2: Admissions pipeline.
+- Open the admissions management page.
+- Show filters like status: under review, offered, accepted, rejected.
+- Explain how staff move applicants through these statuses.
+- Mention that there is a cleanup rule that can remove old “accepted” applications after some time, so the table does not grow forever.
+
+Step 3: Student creation and onboarding.
+- Show that accepted applicants become student records.
+- Mention that after this, students can log in to the student portal.
+
+Key message:
+Admins get a central console for admissions, student records, and the basic structure of the university (departments, programs, and courses).
+
+------------------------------------------------------------
+3.2 Student experience – enrollment and self‑service (about 3–4 minutes)
+
+Step 1: Login as a student and open the student dashboard.
+- Point out basic profile information.
+- Show current semester courses, if any.
+- Show any GPA or progress summary, even if it is simple.
+
+Step 2: Level‑based course enrollment.
+- Go to the student course enrollment page.
+- Explain the rule:
+  Each course is tagged with a level (for example Level 100, 200, 300, 400).
+  The system only allows a student to enroll in courses that match their current level.
+- Demonstration:
+  Try to enroll a Level 100 student into a Level 300 course and show the error message.
+  Then enroll the same student into a course at their correct level and show that it succeeds.
+- Mention prerequisites:
+  If you have courses with prerequisites set up, show that the system checks for completed prerequisite course codes before allowing enrollment.
+
+Step 3: Grades and fees.
+- Open the student grades page.
+  Show a table with courses, final grades, and credits.
+- Open the fee or finance page.
+  Show payment status such as Paid, Pending, or Overdue.
+  Explain that admins update these records, and students can always see the latest status.
+
+Step 4: Graduation lock information for a Level 400 student.
+- Log in as a Level 400 student near graduation.
+- Show a message on the dashboard indicating the graduation lock date.
+  For example: “You will lose access on [date] after your graduation grace period ends.”
+
+Key message:
+Students have self‑service access, but the system enforces academic rules, especially course level eligibility and the graduation access window.
+
+------------------------------------------------------------
+3.3 Instructor experience – managing students and grades (about 3–4 minutes)
+
+Step 1: Login as an instructor.
+- Show the instructor dashboard with the list of course sections and student counts.
+
+Step 2: Instructor “Students” page.
+- Open the instructor students page.
+- Show the search box and start typing a student’s name, ID, or email.
+- Explain how the search works:
+  It focuses on students in the instructor’s department and sections.
+  It can also find students who are already enrolled in the instructor’s sections.
+
+Step 3: Section selection with clear labels.
+- Point at the section dropdowns.
+- Show that each option displays: course code, course name, section name, semester, and year.
+- Explain that this avoids confusion when there are multiple sections of something like “IT 101”.
+
+Step 4: Level‑aware enrollment from the instructor side.
+- Pick a student from the table and open the “Enroll” dropdown.
+- Explain that this dropdown is filtered to only show sections whose course level matches that student’s current level.
+- Enroll the student into one of these sections and show the success message.
+- Explain that underneath, the same enrollment function is used as in the student portal, so the rules are consistent.
+
+Step 5: Grade entry and its impact.
+- Open a grade entry page for one of the instructor’s sections.
+- Enter some assessment scores and show that the system computes a final grade.
+- Explain that when grades are finalized for a course section:
+  Final grades are stored for each enrollment.
+  For graduating students, the system can mark them as completed and start their graduation grace period.
+
+Key message:
+Instructors can search, invite, and enroll the right students into the right sections, and the UI helps them respect level rules and identify sections clearly.
+
+------------------------------------------------------------
+3.4 Automation and graduation handling (about 1–2 minutes)
+
+Explain the graduation rules:
+- When a Level 400 student has their final grades recorded, the system marks them as completed.
+- It calculates a graduation_lock_at date (for example, two weeks after graduation).
+- The student can keep logging in until that date; after that, they should lose access.
+
+Show the automatic account locking:
+- Mention the command line script that is meant to be run nightly by a scheduler.
+  It finds users whose graduation_lock_at date has passed and disables their accounts.
+- Explain that the login helper also checks graduation_lock_at, so blocked graduates cannot log in even if they know their password.
+
+Explain why this matters:
+- Universities usually allow a short window after graduation so students can download transcripts or sort out issues.
+- After that period, IT has to deactivate accounts.
+- This system models that process explicitly instead of relying on a one‑time manual cleanup.
+
+Key message:
+The system does not stop at grading. It automates post‑graduation access and cleanup.
+
+------------------------------------------------------------
+4. Technical architecture (about 2–3 minutes, mostly verbal)
+
+Technology stack:
+- Backend: PHP 8+ with PDO for database access.
+- Database: MySQL or MariaDB with a normalized schema and foreign keys.
+- Frontend: HTML, CSS, Bootstrap 5, and some JavaScript for interactivity.
+
+Code structure:
+- The “includes” folder contains reusable helpers, including:
+  functions for database access, enrollment, admissions, finance, authentication, CSRF, flash messages, and security headers.
+- The “admin”, “student”, and “instructor” folders hold the interfaces for each role.
+- The “database” folder contains the main schema definition and a setup script that seeds sample data:
+  It creates academic years, semesters, departments, programs, and levels.
+  It inserts demo instructors, students, courses, and course sections.
+  It seeds enrollments and sample grades and recalculates enrollment counts.
+
+Business logic highlights:
+- Enrollment helpers enforce:
+  course capacity and waitlists,
+  department and level rules,
+  and prerequisites.
+- Graduation helpers compute and enforce the graduation_lock_at date.
+- Notification helpers send in‑app messages to users, for example when enrollment succeeds, a grade is posted, or a fee status changes.
+
+------------------------------------------------------------
+5. Security and reliability (brief)
+
+Main security measures:
+- Password hashing using standard PHP functions.
+- CSRF tokens on forms to prevent cross‑site request forgery.
+- Session timeouts and activity refresh to avoid stale sessions.
+- Prepared statements on all database queries.
+
+Data consistency:
+- Normalized tables with foreign keys and constraints.
+- Aggregate counts, such as the number of students enrolled in a section, can be recomputed from the enrollments table to stay accurate.
+
+Suggested way to explain this:
+“I did not just build pages. I designed a consistent data model and security layer that enforces university rules and protects user data.”
+
+------------------------------------------------------------
+6. How to answer common grader questions
+
+Question: What is unique about this project?
+Suggested answer:
+“It covers the full lifecycle from admissions to post‑graduation, and it automates important academic rules. In particular, it enforces level‑based enrollment and a graduation grace period with automatic account locking. It also gives instructors a realistic tool to manage students and enrollments with these rules built in.”
+
+Question: How do you ensure data consistency?
+Suggested answer:
+“The database is normalized with foreign keys, and almost all writes go through helper functions that validate inputs. When the system shows counts, like how many students are enrolled in a section, it can recompute those counts directly from the enrollments table so the numbers stay correct.”
+
+Question: How secure is it?
+Suggested answer:
+“I use password hashing, CSRF tokens, and prepared statements everywhere. Each route checks the user’s role, and sessions have timeouts, so access is controlled at multiple layers.”
+
+Question: What would you add next?
+Suggested answer:
+“Next steps would be richer analytics dashboards with charts, deeper integration with real payment gateways, a mobile or progressive web app front‑end, and more automated notifications (for example, email or SMS reminders) powered by the existing notification system.”
+
+------------------------------------------------------------
+7. Closing
+
+Suggested closing statement:
+
+“This system does not just store student records. It models the real rules of a university: who can enroll in which courses, how graduation is handled, and how admins and instructors collaborate, while giving students a self‑service portal. The automation around levels and graduation locks is where I focused most of my effort, and it makes the implementation more realistic than a basic CRUD project.”

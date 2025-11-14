@@ -1,0 +1,50 @@
+Deployment & Remaining Tasks for University Management System
+
+1) Prepare hosting
+- Create hosting account with PHP 8.x support.
+- Create MySQL database; note DB host, name, user, pass.
+
+2) Database
+- Import database/schema.sql via database management tool.
+- Verify tables: users, otp_codes, password_resets, notifications, etc.
+
+3) Upload code (to web root)
+- Folders: admin, instructor, student, includes, assets, vendor (if present).
+- Files: index.php (if any), login.php, mfa_verify.php, forgot_password.php, reset_password.php, logout.php, any other root PHP files.
+
+4) Configure production
+- On server, create includes/config.local.php with:
+  - SITE_URL = '/'
+  - DB_HOST/DB_PORT/DB_USER/DB_PASS/DB_NAME
+  - APP_DEBUG = false
+  - MAIL_SMTP_HOST/PORT/SECURE/USER/PASS (or plan API fallback)
+
+5) Email delivery
+- Configure SMTP settings. If SMTP fails:
+  - Switch to email API over HTTPS (e.g., Brevo API) or use a trusted SMTP proxy.
+  - Temporarily log emails to email_outbox table for verification.
+
+6) Test flows
+- Login + MFA (admin enforced, others optional toggle).
+- MFA resend email.
+- Forgot password + reset link.
+- Student/Instructor profile: MFA toggle + password change.
+- Admin notifications dropdown loads.
+
+7) Hardening
+- Ensure APP_DEBUG=false (prod).
+- Remove any debug surface (hidden automatically when APP_DEBUG=false).
+- Verify CA bundle not required on host (host-managed TLS trust). If needed, use API email.
+
+8) Nice-to-haves
+- Add course registration UI (add/drop, waitlist) and instructor grade entry.
+- Student transcript and billing UI.
+- Admin reports/dashboards.
+
+Files to exclude from VCS/commit
+- includes/config.local.php (create only on server)
+
+Notes
+- Set SITE_URL='/' on host (app deployed at domain root).
+- If app under subfolder, set SITE_URL to '/subfolder'.
+- Define role-based admin permissions (Super Admin, Registrar, Finance, Admissions) and update UI/actions to honor roles

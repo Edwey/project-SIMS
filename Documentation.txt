@@ -1,0 +1,70 @@
+University Management System Notes
+
+System Overview
+This platform is the university's day-to-day workspace. Admissions officers, academic staff, finance teams, and students all work from the same database so decisions and records stay in sync. Everything runs on PHP with shared helpers in `includes/`, Bootstrap for UI, and a MySQL schema defined in `database/schema.sql`.
+
+Purpose
+The system manages admissions, academics, finance records, and student self-service for the university, forming a comprehensive Student Information Management System (SIMS).
+
+Key Areas
+Admissions tools take applicants from initial submission to acceptance and onboarding.
+Program guide and requirements tools store departments, programs, courses, and prerequisites.
+Academic records track enrollments, grades, GPA summaries, and attendance.
+Finance tools record fee payments and status changes.
+Notifications keep users informed through the admin topbar dropdown.
+
+Important Folders
+admin contains staff dashboards and management screens. 
+student holds student dashboards, course listings, grades, and registration completion pages.
+includes holds shared helpers: database.php, functions.php, auth middleware, and utilities such as flash messages and CSRF handling.
+database keeps schema.sql plus setup.php, which seeds demo data for departments, programs, courses, and users.
+applications is the applicant self-service site. assets stores css, js, and images.
+
+Core Helpers (includes/functions.php)
+Authentication helpers handle require_auth and session checks.
+Admissions helpers manage application status and onboarding.
+Academic helpers provide GPA summaries, GPA by term, enrollment fetches, and new program requirement lookups.
+Finance helpers update fee payments and trigger notifications.
+Utilities include CSRF tokens, flash messaging, redirects, and security header support.
+
+Admin Console Highlights
+Program Guide lists programs and links to Program Requirements.
+Program Requirements manages program_courses and course_prerequisites records.
+Manage screens exist for students, instructors, departments, courses, semesters, years, levels, sections, waitlists, fee payments, and notifications.
+Analytics suite adds Academic, Finance, and Admissions dashboards with CSV export support.
+
+Student Experience Highlights
+Dashboard shows GPA summary, GPA by term table, attendance info, and quick actions.
+Finalize registration page activates student accounts using the application key.
+My Courses and Grades pages show enrollments and marks.
+
+Roles & Access
+- **Admin**: Full control of the `admin/` console, including programs, requirements, students, enrollments, finance, notifications, and analytics. Uses `require_auth('admin')`.
+- **Instructor**: Limited dashboards (grade entry, course sections). Access is enforced by role checks in helper functions.
+- **Student**: Sees the `student/` portal with dashboard, degree audit, grades, and registration tools. Guarded by `require_auth('student')`.
+- **Applicant**: Public users of `applications/` submit forms and track status. Authentication occurs via emailed application keys until they become students.
+
+Authentication & Security Flow
+- `includes/admin_auth.php` and `require_auth()` check sessions, user roles, and CSRF tokens.
+- Passwords use PHP's `password_hash` with configuration from `config.php`.
+- `set_security_headers()` applies CSP and other headers; sessions expire with `SESSION_TIMEOUT`.
+
+Onboarding Journey
+1. Applicants submit an application in `applications/apply.php` and receive tracking details by email.
+2. Admissions staff review and update status in `admin/admissions.php`. Accepted applicants trigger account creation and email notifications.
+3. Students finalize registration using their application key, then gain access to the `student/` portal.
+4. Advisors assign programs and requirements, and students begin enrolling via course sections.
+
+Security
+CSRF protection is applied to forms using csrf_field and verify_csrf_token.
+Passwords are hashed with PHP password_hash using options from config.php.
+Sessions expire based on the SESSION_TIMEOUT constant.
+set_security_headers helper is available to add standard headers and should be included on public entry points.
+
+Current Pending Work
+Gather student/admin feedback on the degree audit analytics and UX.
+Add GPA by term charts for visual reporting.
+Implement scheduled exports/visual charts for analytics dashboards.
+Expand notifications beyond page refresh (e.g., digest emails or push).
+Evaluate infrastructure for optional real-time notification transport.
+

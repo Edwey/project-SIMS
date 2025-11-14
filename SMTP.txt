@@ -1,0 +1,31 @@
+SMTP Configuration Guide for University Management System
+
+To configure email functionality in the University Management System:
+
+1. Choose an SMTP provider (e.g., Brevo, SendGrid, Gmail SMTP, etc.)
+
+2. Obtain SMTP credentials:
+   - SMTP Server address
+   - Port (usually 587 for TLS, 465 for SSL, 25 for non-secure)
+   - Username/Login
+   - Password/API Key
+
+3. Update includes/config.local.php with:
+   - MAIL_SMTP_HOST = 'your-smtp-server.com'
+   - MAIL_SMTP_PORT = 587
+   - MAIL_SMTP_SECURE = 'tls' (or 'ssl')
+   - MAIL_SMTP_USER = 'your-smtp-username'
+   - MAIL_SMTP_PASS = 'your-smtp-password'
+
+4. For SSL certificate verification (especially on Windows/XAMPP):
+   - Ensure cacert.pem exists at C:\xampp\php\extras\ssl\cacert.pem
+   - If missing, download latest cacert.pem from https://curl.se/docs/caextract.html
+   - Save to C:\xampp\php\extras\ssl\cacert.pem
+   - Update php.ini: curl.cainfo = "C:\xampp\php\extras\ssl\cacert.pem"
+
+5. Test email functionality:
+   - Use the forgot password feature
+   - Check server logs for SMTP connection errors
+   - Verify emails are sent and received
+
+Note: Never commit SMTP credentials to version control. Store them only in config.local.php on the server.

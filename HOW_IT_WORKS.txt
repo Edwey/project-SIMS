@@ -1,0 +1,24 @@
+System Overview:
+- Users authenticate via login.php. Credentials are verified and sessions initialized using helpers in includes/functions.php.
+- Student routes load shared guards from includes/auth.php, which enforces login and security headers.
+
+Student Dashboard Flow:
+- dashboard.php retrieves the logged-in student profile with get_current_user_profile().
+- Current enrollments for the active semester come from get_student_current_enrollments().
+- GPA stats rely on get_student_gpa_summary(), which queries the student_gpa_view view or falls back to direct aggregation.
+- Attendance summary and recent grades are returned by get_student_attendance_summary() and get_student_recent_grades().
+
+Course & Grade Management:
+- enroll.php lists department course sections via get_department_sections() and calls enroll_student() to create new enrollments.
+- grades.php fetches assessment breakdowns; instructors can finalize an entire section using finalize_course_section_grades(), which sets final_grade and grade_points in enrollments.
+- student/transcript.php and student/my_courses.php reuse enrollment data to display academic history.
+
+Data Layer:
+- database/setup.php seeds Ghanaian demo data, creates course sections, assigns enrollments, inserts assessment records, and calls calculate_enrollment_final_grade() for every enrollment.
+- All database access flows through includes/database.php, which wraps PDO with helper functions (db_query, db_execute, db_query_one, db_last_id).
+
+Supporting Features:
+- Fee statements (student/fee_statement.php) read from fee_payments using get_student_fee_payments() and get_student_fee_summary().
+- Attendance (student/attendance.php) summarizes counts and lists detailed records.
+- Profiles (student/profile.php) allow updating contact details and passwords through db_execute() calls and hash_password().
+- Security headers, flash messaging, and session expiry are handled by reusable helpers such as set_security_headers(), render_flash_messages(), refresh_session_activity(), and require_login().
