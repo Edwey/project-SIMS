@@ -17,7 +17,7 @@ $currentAdminPage = basename($_SERVER['PHP_SELF'] ?? '');
       $classes = 'nav-link text-white d-flex align-items-center';
       $classes .= $isActive ? ' active bg-primary' : ' text-opacity-75';
       echo '<li class="nav-item">'
-        . '<a class="' . $classes . '" href="/project/admin/' . $file . '">' . htmlspecialchars($label) . '</a>'
+        . '<a class="' . $classes . '" href="' . SITE_URL . '/admin/' . $file . '">' . htmlspecialchars($label) . '</a>'
         . '</li>';
     }
 
@@ -79,7 +79,7 @@ $currentAdminPage = basename($_SERVER['PHP_SELF'] ?? '');
         $isActive = $currentAdminPage === $file;
         $classes = 'nav-link text-white';
         $classes .= $isActive ? ' active bg-primary' : ' text-opacity-75';
-        echo '<li class="nav-item"><a class="' . $classes . '" href="/project/admin/' . $file . '">' . htmlspecialchars($label) . '</a></li>';
+        echo '<li class="nav-item"><a class="' . $classes . '" href="' . SITE_URL . '/admin/' . $file . '">' . htmlspecialchars($label) . '</a></li>';
       }
       echo '</ul></div></li>';
     }

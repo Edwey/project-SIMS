@@ -327,6 +327,10 @@ CREATE TABLE IF NOT EXISTS programs (
     FOREIGN KEY (department_id) REFERENCES departments(id)
 );
 
+-- Ensure students.program_id references programs (run after both tables exist)
+ALTER TABLE students
+  ADD CONSTRAINT fk_students_program FOREIGN KEY (program_id) REFERENCES programs(id);
+
 CREATE TABLE IF NOT EXISTS program_courses (
     id INT PRIMARY KEY AUTO_INCREMENT,
     program_id INT NOT NULL,

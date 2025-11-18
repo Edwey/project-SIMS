@@ -89,7 +89,7 @@ if ($sectionId > 0) {
                 </div>
                 <div>
                   <span class="badge bg-warning text-dark me-2"><?php echo (int)$s['wl_count']; ?> waiting</span>
-                  <a class="btn btn-sm btn-outline-secondary" href="/project/instructor/waitlists.php?section_id=<?php echo (int)$s['id']; ?>">Manage</a>
+                  <a class="btn btn-sm btn-outline-secondary" href="<?php echo SITE_URL; ?>/instructor/waitlists.php?section_id=<?php echo (int)$s['id']; ?>">Manage</a>
                 </div>
               </li>
             <?php endforeach; ?>

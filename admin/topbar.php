@@ -26,7 +26,7 @@ $recentNotifications = is_logged_in() ? get_user_notifications((int)current_user
                         <span class="dropdown-item text-muted">No notifications</span>
                     <?php else: ?>
                         <?php foreach ($recentNotifications as $notification): ?>
-                            <a class="dropdown-item small" href="/project/admin/notifications.php">
+                            <a class="dropdown-item small" href="<?php echo SITE_URL; ?>/admin/notifications.php">
                                 <div class="fw-semibold">[<?php echo strtoupper($notification['type']); ?>] <?php echo htmlspecialchars($notification['title']); ?></div>
                                 <div class="text-muted">
                                     <?php echo htmlspecialchars($notification['created_at']); ?> · From: <?php echo htmlspecialchars($notification['sender_username'] ?? 'System'); ?>
@@ -34,7 +34,7 @@ $recentNotifications = is_logged_in() ? get_user_notifications((int)current_user
                             </a>
                         <?php endforeach; ?>
                         <div><hr class="dropdown-divider"></div>
-                        <a class="dropdown-item" href="/project/admin/notifications.php">View all notifications</a>
+                        <a class="dropdown-item" href="<?php echo SITE_URL; ?>/admin/notifications.php">View all notifications</a>
                     <?php endif; ?>
                 </div>
             </div>
@@ -43,10 +43,10 @@ $recentNotifications = is_logged_in() ? get_user_notifications((int)current_user
                     <i class="fas fa-user-circle me-1"></i><?php echo htmlspecialchars($_SESSION['username'] ?? 'Admin'); ?>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="adminUserDropdown">
-                    <li><a class="dropdown-item" href="/project/admin/profile.php"><i class="fas fa-user me-2"></i>Profile</a></li>
-                    <li><a class="dropdown-item" href="/project/admin/manage_users.php"><i class="fas fa-users-cog me-2"></i>Manage Users</a></li>
+                    <li><a class="dropdown-item" href="<?php echo SITE_URL; ?>/admin/profile.php"><i class="fas fa-user me-2"></i>Profile</a></li>
+                    <li><a class="dropdown-item" href="<?php echo SITE_URL; ?>/admin/manage_users.php"><i class="fas fa-users-cog me-2"></i>Manage Users</a></li>
                     <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item text-danger" href="/project/logout.php"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+                    <li><a class="dropdown-item text-danger" href="<?php echo SITE_URL; ?>/logout.php"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
                 </ul>
             </div>
         </div>

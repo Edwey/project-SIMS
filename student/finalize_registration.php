@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </form>
 
             <div class="mt-3 text-muted small">
-              Need help finding your key? Visit the <a href="/project/applications/dashboard.php">Applications Dashboard</a>.
+              Need help finding your key? Visit the <a href="<?php echo SITE_URL; ?>/applications/dashboard.php">Applications Dashboard</a>.
             </div>
           </div>
         </div>

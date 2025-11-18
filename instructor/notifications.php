@@ -40,7 +40,7 @@ $notifications = get_user_notifications($userId, $onlyUnread, 200);
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h4 class="mb-0">Notifications</h4>
     <div>
-      <a class="btn btn-outline-secondary btn-sm" href="/project/instructor/notifications.php?filter=<?php echo $onlyUnread ? '' : 'unread'; ?>">
+      <a class="btn btn-outline-secondary btn-sm" href="<?php echo SITE_URL; ?>/instructor/notifications.php?filter=<?php echo $onlyUnread ? '' : 'unread'; ?>">
         <?php echo $onlyUnread ? 'Show All' : 'Show Unread'; ?>
       </a>
       <form method="POST" class="d-inline">

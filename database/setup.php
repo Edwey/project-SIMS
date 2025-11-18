@@ -91,56 +91,9 @@ function execute_sql_file($filename) {
 }
 
 try {
+
     echo "<h2>Creating Database Schema...</h2>";
     execute_sql_file('../database/schema.sql');
-
-    // Post-schema hardening: ensure new columns/tables exist even on older DBs
-    echo "<h3>Applying post-schema migrations...</h3>";
-    try {
-        db_execute('ALTER TABLE notifications ADD COLUMN sender_user_id INT NULL');
-    } catch (Exception $e) { /* likely exists */ }
-    try {
-        db_execute('ALTER TABLE users ADD COLUMN graduation_lock_at DATETIME NULL AFTER locked_until');
-    } catch (Exception $e) { /* may already exist */ }
-    try {
-        db_execute('ALTER TABLE notifications ADD CONSTRAINT fk_notifications_sender FOREIGN KEY (sender_user_id) REFERENCES users(id)');
-    } catch (Exception $e) { /* may already exist */ }
-    try {
-        db_execute('CREATE INDEX idx_notifications_sender ON notifications(sender_user_id)');
-    } catch (Exception $e) { /*  */ }
-    try {
-        db_execute("CREATE TABLE IF NOT EXISTS waitlists (
-            id INT PRIMARY KEY AUTO_INCREMENT,
-            student_id INT NOT NULL,
-            course_section_id INT NOT NULL,
-            requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY uniq_student_section (student_id, course_section_id),
-            FOREIGN KEY (student_id) REFERENCES students(id),
-            FOREIGN KEY (course_section_id) REFERENCES course_sections(id)
-        ) ENGINE=InnoDB");
-    } catch (Exception $e) { /* */ }
-    try {
-        db_execute('ALTER TABLE students ADD CONSTRAINT fk_students_program FOREIGN KEY (program_id) REFERENCES programs(id)');
-    } catch (Exception $e) { /* */ }
-    try {
-        db_execute('ALTER TABLE semesters ADD COLUMN registration_deadline DATE NULL');
-    } catch (Exception $e) { /* */ }
-    try {
-        db_execute('ALTER TABLE semesters ADD COLUMN exam_period_start DATE NULL');
-    } catch (Exception $e) { /* */ }
-    try {
-        db_execute('ALTER TABLE semesters ADD COLUMN exam_period_end DATE NULL');
-    } catch (Exception $e) { /* */ }
-    try {
-        db_execute('ALTER TABLE semesters ADD COLUMN notes TEXT NULL');
-    } catch (Exception $e) { /* */ }
-    // must_change_password flag on users
-    try {
-        db_execute('ALTER TABLE users ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0');
-    } catch (Exception $e) { /* */ }
-    try {
-        db_execute('ALTER TABLE semesters ADD CONSTRAINT uniq_semester_per_year UNIQUE (academic_year_id, semester_name)');
-    } catch (Exception $e) { /* */ }
 
     echo "<h2>Inserting Sample Data...</h2>";
 
@@ -701,11 +654,16 @@ try {
     }
 
     // ------------------------------
-    // Enrollments: enroll each student in 3-5 courses 
+    // Enrollments: enroll each student in 3-5 courses (current academic year)
     // ------------------------------
     echo "<h3>Enrollments...</h3>";
     $students_db = db_query("SELECT id FROM students");
-    $all_sections = db_query("SELECT id, semester_id, academic_year_id FROM course_sections");
+    $all_sections = [];
+    if (!empty($current_ay['id'])) {
+        $all_sections = db_query("SELECT id, semester_id, academic_year_id FROM course_sections WHERE academic_year_id = ?", [$current_ay['id']]);
+    } else {
+        $all_sections = db_query("SELECT id, semester_id, academic_year_id FROM course_sections");
+    }
     $sections_by_semester = [];
     foreach ($all_sections as $sec) {
         $semId = (int)$sec['semester_id'];
@@ -944,25 +902,45 @@ try {
     // Historical data: seed prior-year sections, enrollments, and grades (idempotent)
     // ------------------------------
     echo "<h3>Seeding prior-year history...</h3>";
+    // Map academic years to a notional level order (1 = Level 100, 4 = Level 400)
+    $allYearsForLevels = db_query("SELECT id, start_date FROM academic_years ORDER BY start_date");
+    $yearLevelOrder = [];
+    $levelOrderCounter = 1;
+    foreach ($allYearsForLevels as $row) {
+        if ($levelOrderCounter > 4) {
+            $levelOrderCounter = 4;
+        }
+        $yearLevelOrder[(int)$row['id']] = $levelOrderCounter;
+        $levelOrderCounter++;
+    }
+
     $currentAyId = $current_ay['id'] ?? null;
     $prior_years = [];
     if ($currentAyId) {
-        $prior_years = db_query("SELECT id, year_name FROM academic_years WHERE id <> ? ORDER BY id", [$currentAyId]);
+        // Only earlier academic years are treated as history
+        $prior_years = db_query("SELECT id, year_name FROM academic_years WHERE id < ? ORDER BY id", [$currentAyId]);
     } else {
         $prior_years = db_query("SELECT id, year_name FROM academic_years ORDER BY id");
     }
 
-    // Build a reusable list of courses and an instructor per department
-    $courses_by_dept = db_query("SELECT c.id AS cid, c.course_code, d.id AS did FROM courses c JOIN departments d ON c.department_id = d.id");
+    // Build a reusable list of courses (with level) and an instructor per department
+    $courses_by_dept = db_query("SELECT c.id AS cid, c.course_code, d.id AS did, l.level_order
+                                 FROM courses c
+                                 JOIN departments d ON c.department_id = d.id
+                                 JOIN levels l ON c.level_id = l.id");
     $instructor_cache = [];
 
     foreach ($prior_years as $yr) {
+        $targetLevelOrder = $yearLevelOrder[(int)$yr['id']] ?? null;
         // two semesters per year
         $sems = db_query("SELECT id, semester_name FROM semesters WHERE academic_year_id = ? ORDER BY start_date", [$yr['id']]);
         foreach ($sems as $sem) {
-            // Create sections for a subset of courses to limit data volume
+            // Create sections for a subset of level-appropriate courses to limit data volume
             $count = 0;
             foreach ($courses_by_dept as $c) {
+                if ($targetLevelOrder !== null && (int)$c['level_order'] !== $targetLevelOrder) {
+                    continue;
+                }
                 if ($count >= 10) break; // limit per semester for demo
                 if (!isset($instructor_cache[$c['did']])) {
                     $inst = db_query_one("SELECT id FROM instructors WHERE department_id = ? LIMIT 1", [$c['did']]);
@@ -981,7 +959,18 @@ try {
             }
 
             // Enroll a sample of students and assign grades
-            $prior_sections = db_query("SELECT id FROM course_sections WHERE academic_year_id = ? AND semester_id = ?", [$yr['id'], $sem['id']]);
+            if ($targetLevelOrder !== null) {
+                $prior_sections = db_query(
+                    "SELECT cs.id
+                     FROM course_sections cs
+                     JOIN courses c ON cs.course_id = c.id
+                     JOIN levels l ON c.level_id = l.id
+                     WHERE cs.academic_year_id = ? AND cs.semester_id = ? AND l.level_order = ?",
+                    [$yr['id'], $sem['id'], $targetLevelOrder]
+                );
+            } else {
+                $prior_sections = db_query("SELECT id FROM course_sections WHERE academic_year_id = ? AND semester_id = ?", [$yr['id'], $sem['id']]);
+            }
             if (!empty($prior_sections)) {
                 $studs = db_query("SELECT id FROM students");
                 foreach ($studs as $s) {
@@ -1028,16 +1017,29 @@ try {
     // Attendance: give each of some enrollments 5 records
     // ------------------------------
     echo "<h3>Attendance samples...</h3>";
-    $some_enrolls = db_query("SELECT id FROM enrollments LIMIT 80");
-    foreach ($some_enrolls as $enr) {
+
+    $semesterStartDates = [];
+    $semesterRows = db_query("SELECT id, start_date FROM semesters");
+    foreach ($semesterRows as $row) {
+        $semesterStartDates[(int)$row['id']] = $row['start_date'];
+    }
+
+    $enrollmentsForAttendance = db_query("SELECT id, semester_id FROM enrollments");
+    foreach ($enrollmentsForAttendance as $enr) {
         $aexists = db_query_one("SELECT id FROM attendance WHERE enrollment_id = ? LIMIT 1", [$enr['id']]);
         if (!$aexists) {
             $statuses = ['present','present','late','present','absent'];
             $dayOffset = 0;
+            $semesterId = (int)$enr['semester_id'];
+            $baseDate = $semesterStartDates[$semesterId] ?? date('Y-m-d');
             foreach ($statuses as $st) {
-                db_execute("INSERT IGNORE INTO attendance (enrollment_id, attendance_date, status, notes, marked_by, created_at) VALUES
-                           (?, DATE_SUB(CURDATE(), INTERVAL ? DAY), ?, ?, (SELECT id FROM instructors LIMIT 1), NOW())", [$enr['id'], $dayOffset, $st, 'Auto-generated sample']);
-                $dayOffset += 2;
+                $attendanceDate = date('Y-m-d', strtotime($baseDate . " +{$dayOffset} days"));
+                db_execute(
+                    "INSERT IGNORE INTO attendance (enrollment_id, attendance_date, status, notes, marked_by, created_at)
+                     VALUES (?, ?, ?, ?, (SELECT id FROM instructors LIMIT 1), NOW())",
+                    [$enr['id'], $attendanceDate, $st, 'Auto-generated sample']
+                );
+                $dayOffset += 7;
             }
             echo "✓ Attendance created for enrollment {$enr['id']}<br>";
         }
@@ -1105,7 +1107,7 @@ try {
     echo "<ul>";
     echo "<li><strong>Admin:</strong> vt_admin / VoltaAdmin@123</li>";
     echo "<li><strong>Instructor sample:</strong> sam_owusu / Instructor@123</li>";
-    echo "<li><strong>Student sample:</strong> kwame_owusu / Student@123</li>";
+    echo "<li><strong>Student sample:</strong> samuel_nk / Student@123</li>";
     echo "</ul>";
     echo "<p>You can now <a href='../login.php'>login to the system</a> and start using VoltaTech University demo data.</p>";
     echo "</div>";

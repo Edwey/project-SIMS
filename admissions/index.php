@@ -22,7 +22,7 @@
         <div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div>
       <?php endforeach; ?>
 
-      <a class="btn btn-success btn-lg" href="/project/admissions/apply.php">Start Application</a>
+      <a class="btn btn-success btn-lg" href="<?php echo SITE_URL; ?>/admissions/apply.php">Start Application</a>
     </div>
   </div>
   <script src="../assets/js/bootstrap.bundle.min.js"></script>

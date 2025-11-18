@@ -3071,6 +3071,22 @@ function get_student_completed_enrollments(int $studentId): array
     return db_query($sql, [$studentId]);
 }
 
+function get_student_attendance_courses(int $studentId): array
+{
+    $sql = "SELECT DISTINCT
+                c.course_code,
+                c.course_name
+            FROM enrollments e
+            JOIN course_sections cs ON e.course_section_id = cs.id
+            JOIN courses c ON cs.course_id = c.id
+            JOIN semesters sem ON e.semester_id = sem.id
+            WHERE e.student_id = ?
+              AND sem.is_current = 1
+            ORDER BY c.course_code";
+
+    return db_query($sql, [$studentId]);
+}
+
 function get_student_gpa_summary(int $studentId): ?array
 {
     $summary = db_query_one('SELECT calculated_gpa, total_credits, total_courses FROM student_gpa_view WHERE id = ?', [$studentId]);
@@ -3125,20 +3141,38 @@ function get_student_recent_grades(int $studentId, int $limit = 5): array
     return db_query($sql, [$studentId, $limit]);
 }
 
-function get_student_attendance_summary(int $studentId): ?array
+function get_student_attendance_summary(int $studentId, ?string $courseCode = null, ?string $attendanceDate = null): ?array
 {
-    return db_query_one("SELECT
-            COUNT(a.id) AS total_count,
-            COUNT(CASE WHEN a.status = 'present' THEN 1 END) AS present_count,
-            COUNT(CASE WHEN a.status = 'absent' THEN 1 END) AS absent_count,
-            COUNT(CASE WHEN a.status = 'late' THEN 1 END) AS late_count,
-            COUNT(CASE WHEN a.status = 'excused' THEN 1 END) AS excused_count
-        FROM attendance a
-        JOIN enrollments e ON a.enrollment_id = e.id
-        WHERE e.student_id = ?", [$studentId]);
+    $sql = "SELECT
+                COUNT(a.id) AS total_count,
+                COUNT(CASE WHEN a.status = 'present' THEN 1 END) AS present_count,
+                COUNT(CASE WHEN a.status = 'absent' THEN 1 END) AS absent_count,
+                COUNT(CASE WHEN a.status = 'late' THEN 1 END) AS late_count,
+                COUNT(CASE WHEN a.status = 'excused' THEN 1 END) AS excused_count
+            FROM attendance a
+            JOIN enrollments e ON a.enrollment_id = e.id
+            JOIN course_sections cs ON e.course_section_id = cs.id
+            JOIN courses c ON cs.course_id = c.id
+            JOIN semesters sem ON e.semester_id = sem.id
+            WHERE e.student_id = ?
+              AND sem.is_current = 1";
+
+    $params = [$studentId];
+
+    if ($courseCode !== null && $courseCode !== '') {
+        $sql .= " AND c.course_code = ?";
+        $params[] = $courseCode;
+    }
+
+    if ($attendanceDate !== null && $attendanceDate !== '') {
+        $sql .= " AND a.attendance_date = ?";
+        $params[] = $attendanceDate;
+    }
+
+    return db_query_one($sql, $params);
 }
 
-function get_student_attendance_records(int $studentId): array
+function get_student_attendance_records(int $studentId, ?string $courseCode = null, ?string $attendanceDate = null): array
 {
     $sql = "SELECT
                 a.attendance_date,
@@ -3154,10 +3188,25 @@ function get_student_attendance_records(int $studentId): array
             JOIN course_sections cs ON e.course_section_id = cs.id
             JOIN courses c ON cs.course_id = c.id
             JOIN instructors i ON cs.instructor_id = i.id
+            JOIN semesters sem ON e.semester_id = sem.id
             WHERE e.student_id = ?
-            ORDER BY a.attendance_date DESC";
+              AND sem.is_current = 1";
 
-    return db_query($sql, [$studentId]);
+    $params = [$studentId];
+
+    if ($courseCode !== null && $courseCode !== '') {
+        $sql .= " AND c.course_code = ?";
+        $params[] = $courseCode;
+    }
+
+    if ($attendanceDate !== null && $attendanceDate !== '') {
+        $sql .= " AND a.attendance_date = ?";
+        $params[] = $attendanceDate;
+    }
+
+    $sql .= " ORDER BY a.attendance_date DESC, c.course_code, cs.section_name";
+
+    return db_query($sql, $params);
 }
 
 function get_student_transcript(int $studentId): array

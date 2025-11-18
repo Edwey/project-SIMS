@@ -52,7 +52,7 @@ $programs = get_programs();
           <div class="alert alert-info d-flex align-items-center" role="alert">
             <i class="fas fa-info-circle me-2"></i>
             <div>
-              You can submit this application without signing in. If you already created an account, <a href="/project/login.php" class="alert-link">sign in</a> to track your submission and receive status updates.
+              You can submit this application without signing in. If you already created an account, <a href="<?php echo SITE_URL; ?>/login.php" class="alert-link">sign in</a> to track your submission and receive status updates.
             </div>
           </div>
         <?php endif; ?>

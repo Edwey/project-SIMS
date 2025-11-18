@@ -1,9 +1,11 @@
-University Management System – Live Presentation Script
+University Student Information Management System (SIMS) – Presentation Script
 
-1. Opening (30–60 seconds)
+Slide 1 – Title
+Title: Student Information Management System (SIMS)
 
-Introduce yourself and the project in one sentence:
-“This is a University Management System that manages the full student lifecycle from admissions to graduation, with automation around enrollment rules and post‑graduation access.”
+Script:
+In this presentation I’ll explain our Student Information Management System, or SIMS.
+The main focus is how the database connects everything: the users, their roles, and all the academic data like students, courses, enrollments, grades, and fees.
 
 State the main goals:
 1) Reduce manual work for admins and instructors.

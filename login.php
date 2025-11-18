@@ -129,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </li>
                             <li>
                                 <div class="fw-semibold text-info">Student</div>
-                                <div><code>kwame_owusu</code> / <code>Student@123</code></div>
+                                <div><code>samuel_nk</code> / <code>Student@123</code></div>
                             </li>
                         </ul>
                     </div>

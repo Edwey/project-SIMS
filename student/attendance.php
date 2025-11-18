@@ -12,8 +12,19 @@ if (!$student) {
 }
 
 $studentId = (int)$student['student_internal_id'];
-$summary = get_student_attendance_summary($studentId);
-$records = get_student_attendance_records($studentId);
+// Filters: course and date (all courses / all days by default)
+$availableCourses = get_student_attendance_courses($studentId);
+
+$selectedCourse = isset($_GET['course']) ? trim($_GET['course']) : '';
+$selectedDate = isset($_GET['date']) ? trim($_GET['date']) : '';
+
+if ($selectedDate !== '' && !preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $selectedDate)) {
+    // Invalid date format, ignore filter
+    $selectedDate = '';
+}
+
+$summary = get_student_attendance_summary($studentId, $selectedCourse !== '' ? $selectedCourse : null, $selectedDate !== '' ? $selectedDate : null);
+$records = get_student_attendance_records($studentId, $selectedCourse !== '' ? $selectedCourse : null, $selectedDate !== '' ? $selectedDate : null);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -54,6 +65,30 @@ $records = get_student_attendance_records($studentId);
             <div class="col-12">
                 <div class="card card-shadow">
                     <div class="card-body">
+                        <form method="GET" class="row g-3 align-items-end mb-4">
+                            <div class="col-md-5">
+                                <label for="course" class="form-label">Course</label>
+                                <select name="course" id="course" class="form-select">
+                                    <option value="">All courses</option>
+                                    <?php foreach ($availableCourses as $course): ?>
+                                        <?php $code = $course['course_code']; ?>
+                                        <option value="<?php echo htmlspecialchars($code); ?>" <?php echo ($selectedCourse === $code) ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($course['course_code'] . ' - ' . $course['course_name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="date" class="form-label">Date</label>
+                                <input type="date" name="date" id="date" class="form-control" value="<?php echo htmlspecialchars($selectedDate); ?>">
+                            </div>
+                            <div class="col-md-2 d-grid">
+                                <button type="submit" class="btn btn-primary">Filter</button>
+                            </div>
+                            <div class="col-md-2 d-grid">
+                                <a href="attendance.php" class="btn btn-outline-secondary">Clear</a>
+                            </div>
+                        </form>
                         <div class="row g-3 text-center">
                             <div class="col-6 col-md-3">
                                 <div class="p-3 bg-light rounded-4">
