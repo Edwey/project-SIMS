@@ -36,19 +36,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $hireDate = $_POST['hire_date'] ?? date('Y-m-d');
     $linkUserId = isset($_POST['user_id']) ? (int)$_POST['user_id'] : null;
 
-    if ($first === '' || $last === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || $deptId <= 0) {
-        set_flash_message('error', 'First/last name, valid email, and department are required.');
+    if ($first === '' || $last === '' || $deptId <= 0) {
+        set_flash_message('error', 'First/last name and department are required.');
         redirect('/admin/manage_instructors.php');
     }
 
     if ($id > 0) {
-        db_execute('UPDATE instructors SET first_name=?, last_name=?, email=?, phone=?, department_id=?, hire_date=? WHERE id=?',
-            [$first,$last,$email,$phone?:null,$deptId,$hireDate,$id]
+        db_execute('UPDATE instructors SET first_name=?, last_name=?, phone=?, department_id=?, hire_date=? WHERE id=?',
+            [$first,$last,$phone?:null,$deptId,$hireDate,$id]
         );
         set_flash_message('success', 'Instructor updated.');
     } else {
-        db_execute('INSERT INTO instructors (first_name,last_name,email,phone,department_id,user_id,hire_date,created_at) VALUES (?,?,?,?,?,?,?, NOW())',
-            [$first,$last,$email,$phone?:null,$deptId,$linkUserId,$hireDate]
+        db_execute('INSERT INTO instructors (first_name,last_name,phone,department_id,user_id,hire_date,created_at) VALUES (?,?,?,?,?,?,NOW())',
+            [$first,$last,$phone?:null,$deptId,$linkUserId,$hireDate]
         );
         set_flash_message('success', 'Instructor created.');
     }
@@ -176,7 +176,6 @@ include __DIR__ . '/header.php';
               </div>
               <div class="col-md-6"><label class="form-label">First Name</label><input type="text" name="first_name" class="form-control" required></div>
               <div class="col-md-6"><label class="form-label">Last Name</label><input type="text" name="last_name" class="form-control" required></div>
-              <div class="col-12"><label class="form-label">Email</label><input type="email" name="email" class="form-control" required></div>
               <div class="col-md-6"><label class="form-label">Phone</label><input type="text" name="phone" class="form-control"></div>
               <div class="col-md-6"><label class="form-label">Hire Date</label><input type="date" name="hire_date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required></div>
             </div>
@@ -222,7 +221,6 @@ include __DIR__ . '/header.php';
               </div>
               <div class="col-md-6"><label class="form-label">First Name</label><input type="text" name="first_name" class="form-control" value="<?php echo htmlspecialchars($edit['first_name'] ?? ''); ?>" required></div>
               <div class="col-md-6"><label class="form-label">Last Name</label><input type="text" name="last_name" class="form-control" value="<?php echo htmlspecialchars($edit['last_name'] ?? ''); ?>" required></div>
-              <div class="col-12"><label class="form-label">Email</label><input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($edit['email'] ?? ''); ?>" required></div>
               <div class="col-md-6"><label class="form-label">Phone</label><input type="text" name="phone" class="form-control" value="<?php echo htmlspecialchars($edit['phone'] ?? ''); ?>"></div>
               <div class="col-md-6"><label class="form-label">Hire Date</label><input type="date" name="hire_date" class="form-control" value="<?php echo htmlspecialchars($edit['hire_date'] ?? date('Y-m-d')); ?>" required></div>
             </div>

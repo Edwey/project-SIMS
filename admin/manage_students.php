@@ -7,13 +7,15 @@ $current_page = 'manage_students.php';
 // Prefetch ref data
 $departments = get_all_departments();
 $levels = get_all_levels();
+$programs = get_all_programs();
 // Load instructors for advisor assignment with advisee counts (sorted by lowest count first)
-$allInstructors = db_query("SELECT i.id, i.first_name, i.last_name, i.email, i.department_id, d.dept_name,
+$allInstructors = db_query("SELECT i.id, i.first_name, i.last_name, u.email, i.department_id, d.dept_name,
     COUNT(sa.id) AS advisee_count
     FROM instructors i
+    JOIN users u ON u.id = i.user_id
     LEFT JOIN student_advisors sa ON sa.instructor_id = i.id AND sa.is_active = 1
     LEFT JOIN departments d ON i.department_id = d.id
-    GROUP BY i.id, i.first_name, i.last_name, i.email, i.department_id, d.dept_name
+    GROUP BY i.id, i.first_name, i.last_name, u.email, i.department_id, d.dept_name
     ORDER BY advisee_count ASC, i.first_name, i.last_name
     LIMIT 1000");
 
@@ -87,12 +89,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $address = trim($_POST['address'] ?? '');
     $levelId = (int)($_POST['current_level_id'] ?? 0);
     $deptId = (int)($_POST['department_id'] ?? 0);
+    $programId = (int)($_POST['program_id'] ?? 0);
     $enrollDate = $_POST['enrollment_date'] ?? date('Y-m-d');
     $status = in_array($_POST['status'] ?? 'active', ['active','graduated','withdrawn','suspended'], true) ? $_POST['status'] : 'active';
     $linkUserId = isset($_POST['user_id']) ? (int)$_POST['user_id'] : null;
 
-    if ($first === '' || $last === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || $levelId<=0 || $deptId<=0) {
-        set_flash_message('error', 'Name, valid email, level and department are required.');
+    if ($first === '' || $last === '' || $levelId<=0 || $deptId<=0 || $programId<=0) {
+        set_flash_message('error', 'Name, level, department and program are required.');
         redirect('/admin/manage_students.php');
     }
 
@@ -115,13 +118,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $studentIdCode = strtoupper(substr($deptCode,0,3)) . substr($year, -2) . str_pad((string)$sequence, 4, '0', STR_PAD_LEFT);
             }
         }
-        // Ensure unique student_id and email
+        // Ensure unique student_id
         $dupeSid = db_query_one('SELECT id FROM students WHERE student_id = ? LIMIT 1', [$studentIdCode]);
         if ($dupeSid) { set_flash_message('error','Student ID already exists.'); redirect('/admin/manage_students.php'); }
-        $dupeEmail = db_query_one('SELECT id FROM students WHERE email = ? LIMIT 1', [$email]);
-        if ($dupeEmail) { set_flash_message('error','Student email already exists.'); redirect('/admin/manage_students.php'); }
-        db_execute('INSERT INTO students (student_id, first_name, last_name, email, phone, date_of_birth, address, current_level_id, user_id, department_id, enrollment_date, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, NOW())',
-            [$studentIdCode,$first,$last,$email,$phone?:null,$dob?:null,$address?:null,$levelId,$linkUserId,$deptId,$enrollDate,$status]
+        // Email uniqueness is enforced at users table level
+        db_execute('INSERT INTO students (student_id, first_name, last_name, phone, date_of_birth, address, current_level_id, user_id, department_id, program_id, enrollment_date, status, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, NOW())',
+            [$studentIdCode,$first,$last,$phone?:null,$dob?:null,$address?:null,$levelId,$linkUserId,$deptId,$programId,$enrollDate,$status]
         );
         set_flash_message('success', 'Student created.');
     }
@@ -162,15 +164,17 @@ if ($page > $totalPages) { $page = $totalPages; $offset = ($page - 1) * $perPage
 
 // Listing page
 $students = db_query(
-    "SELECT s.*, d.dept_name, l.level_name,
-            u.graduation_lock_at, u.is_active AS user_active,
-            i.first_name AS adv_first, i.last_name AS adv_last, i.email AS adv_email, sa.instructor_id AS adv_id
+    "SELECT s.*, p.program_name, p.program_code, d.dept_name, l.level_name,
+            s.graduation_lock_at, u.is_active AS user_active,
+            i.first_name AS adv_first, i.last_name AS adv_last, ui.email AS adv_email, sa.instructor_id AS adv_id
      FROM students s
      JOIN users u ON u.id = s.user_id
+     JOIN programs p ON p.id = s.program_id
      JOIN departments d ON s.department_id=d.id
      JOIN levels l ON s.current_level_id=l.id
      LEFT JOIN student_advisors sa ON sa.student_id = s.id AND sa.is_active = 1
      LEFT JOIN instructors i ON sa.instructor_id = i.id
+     LEFT JOIN users ui ON ui.id = i.user_id
      $whereSql
      ORDER BY s.first_name, s.last_name
      LIMIT ?, ?",
@@ -247,16 +251,16 @@ $assignStudent = $assignAdvisorId>0 ? db_query_one('SELECT id, first_name, last_
         </div>
         <div class="card-body table-responsive">
           <table class="table align-middle">
-            <thead><tr><th>ID</th><th>Name</th><th>Dept/Level</th><th>Advisor</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>ID</th><th>Name</th><th>Program/Level</th><th>Advisor</th><th>Status</th><th></th></tr></thead>
             <tbody>
               <?php foreach ($students as $s): ?>
                 <tr>
                   <td class="small text-muted"><?php echo htmlspecialchars($s['student_id']); ?></td>
                   <td>
                     <div class="fw-semibold"><?php echo htmlspecialchars($s['first_name'].' '.$s['last_name']); ?></div>
-                    <div class="text-muted small"><?php echo htmlspecialchars($s['email']); ?><?php if (!empty($s['phone'])): ?> · <?php echo htmlspecialchars($s['phone']); ?><?php endif; ?></div>
+                    <div class="text-muted small"><?php echo htmlspecialchars($s['user_email']); ?><?php if (!empty($s['phone'])): ?> · <?php echo htmlspecialchars($s['phone']); ?><?php endif; ?></div>
                   </td>
-                  <td class="small text-muted"><?php echo htmlspecialchars($s['dept_name']); ?> · <?php echo htmlspecialchars($s['level_name']); ?></td>
+                  <td class="small text-muted"><?php echo htmlspecialchars($s['program_name']); ?> · <?php echo htmlspecialchars($s['level_name']); ?></td>
                   <td class="small">
                     <?php if (!empty($s['adv_id'])): ?>
                       <div><?php echo htmlspecialchars(($s['adv_first']??'').' '.($s['adv_last']??'')); ?></div>

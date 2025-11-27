@@ -138,6 +138,11 @@ function generate_email_otp(int $userId, string $purpose = 'mfa', int $ttlSecond
     $expires = date('Y-m-d H:i:s', time() + max(60, $ttlSeconds));
     db_execute('INSERT INTO otp_codes (user_id, code_hash, channel, purpose, expires_at, created_at) VALUES (?, ?, "email", ?, ?, NOW())', [$userId, $hash, $purpose, $expires]);
 
+    if (defined('APP_DEBUG') && APP_DEBUG) {
+        $_SESSION['debug_last_otp'][$purpose] = $code;
+        app_log('debug', sprintf('OTP (%s) for user %d generated during %s', $code, $userId, $purpose));
+    }
+
     $subject = 'Your verification code';
     $html = '<p>Your verification code is:</p><p style="font-size:22px;font-weight:bold;letter-spacing:2px">' . htmlspecialchars($code) . '</p><p>This code expires in ' . ceil($ttlSeconds/60) . ' minutes.</p>';
     $text = "Your verification code is: $code\nIt expires in " . ceil($ttlSeconds/60) . " minutes.";
@@ -658,7 +663,7 @@ function process_graduation_account_locks(): array
 {
     $now = date('Y-m-d H:i:s');
     $eligibleUsers = db_query(
-        'SELECT id, username, graduation_lock_at FROM users WHERE role = "student" AND is_active = 1 AND graduation_lock_at IS NOT NULL AND graduation_lock_at <= ? ORDER BY graduation_lock_at ASC',
+        'SELECT s.id, u.username, s.graduation_lock_at FROM students s JOIN users u ON u.id = s.user_id WHERE u.role = "student" AND u.is_active = 1 AND s.graduation_lock_at IS NOT NULL AND s.graduation_lock_at <= ? ORDER BY s.graduation_lock_at ASC',
         [$now]
     );
 
@@ -677,7 +682,7 @@ function process_graduation_account_locks(): array
             [
                 $userId,
                 'graduation_account_deactivated',
-                'user',
+                'student',
                 $userId,
                 json_encode(['is_active' => 1, 'graduation_lock_at' => $userRow['graduation_lock_at']], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 json_encode(['is_active' => 0], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
@@ -1203,6 +1208,11 @@ function get_all_levels(): array
     return db_query('SELECT id, level_name FROM levels ORDER BY level_order');
 }
 
+function get_all_programs(): array
+{
+    return db_query('SELECT id, program_name FROM programs ORDER BY program_name');
+}
+
 function get_level_by_id(int $levelId): ?array
 {
     if ($levelId <= 0) return null;
@@ -1724,7 +1734,7 @@ function get_student_course_completions(int $studentId): array
          FROM enrollments e
          JOIN course_sections cs ON cs.id = e.course_section_id
          JOIN courses c ON c.id = cs.course_id
-         WHERE e.student_id = ? AND e.status IN ("completed", "passed")',
+         WHERE e.student_id = ? AND e.final_grade IS NOT NULL',
         [$studentId]
     );
 
@@ -1758,6 +1768,7 @@ function get_student_program_progress(int $studentId, int $programId): array
     $requiredTotal = 0;
     $requiredCompleted = 0;
     $electiveCompleted = 0;
+    $programCompletedTotal = 0;
     $remainingRequired = [];
     $remainingElectives = [];
 
@@ -1770,12 +1781,14 @@ function get_student_program_progress(int $studentId, int $programId): array
             $requiredTotal++;
             if ($isCompleted) {
                 $requiredCompleted++;
+                $programCompletedTotal++;
             } else {
                 $remainingRequired[] = $req;
             }
         } else {
             if ($isCompleted) {
                 $electiveCompleted++;
+                $programCompletedTotal++;
             } else {
                 $remainingElectives[] = $req;
             }
@@ -1787,7 +1800,7 @@ function get_student_program_progress(int $studentId, int $programId): array
     return [
         'total_courses' => count($requirements),
         'required_courses' => $requiredTotal,
-        'completed_courses' => count($completedCourseIds),
+        'completed_courses' => $programCompletedTotal,
         'required_completed' => $requiredCompleted,
         'elective_completed' => $electiveCompleted,
         'remaining_courses' => $remaining,
@@ -1977,7 +1990,11 @@ function set_application_status(int $appId, string $status, ?string $offerNotes 
     } elseif ($status === 'accepted') {
         // Accept: provision user and student if not exists
         $app = db_query_one('SELECT a.*, p.department_id FROM applications a JOIN programs p ON a.program_id = p.id WHERE a.id = ? LIMIT 1', [$appId]);
-        if (!$app) return ['success' => false, 'message' => 'Application not found.'];
+        if (!$app) {
+            error_log('Application not found for ID: ' . $appId);
+            return ['success' => false, 'message' => 'Application not found.'];
+        }
+        error_log('Application found: ' . json_encode($app));
 
         // Create user account if email not in users
         $user = db_query_one('SELECT id, username FROM users WHERE email = ? LIMIT 1', [$app['prospect_email']]);
@@ -1992,8 +2009,9 @@ function set_application_status(int $appId, string $status, ?string $offerNotes 
                 $username = $baseUsername . $try;
             }
             $tempPass = generate_temporary_password(12);
-            db_execute('INSERT INTO users (username, email, password_hash, role, is_active, must_change_password, created_at) VALUES (?, ?, ?, "student", 1, 1, NOW())', [$username, $app['prospect_email'], hash_password($tempPass)]);
+            $userResult = db_execute('INSERT INTO users (username, email, password_hash, role, is_active, must_change_password, created_at) VALUES (?, ?, ?, "student", 1, 1, NOW())', [$username, $app['prospect_email'], hash_password($tempPass)]);
             $userId = (int)db_last_id();
+            error_log('User created: username=' . $username . ', user_id=' . $userId . ', result=' . ($userResult ? 'true' : 'false'));
 
             // Email outbox
             db_execute('INSERT INTO email_outbox (to_user_id, subject, body, template, created_at) VALUES (?, ?, ?, ?, NOW())', [
@@ -2011,19 +2029,47 @@ function set_application_status(int $appId, string $status, ?string $offerNotes 
             }
             $tempPass = generate_temporary_password(12);
             db_execute('UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = ?', [hash_password($tempPass), $userId]);
+            error_log('Existing user updated: user_id=' . $userId);
         }
 
         // Create student record if missing
         $stu = db_query_one('SELECT id FROM students WHERE user_id = ? LIMIT 1', [$userId]);
+        $studentId = $stu ? (int)$stu['id'] : null;
+        error_log('Student check for user_id=' . $userId . ': ' . ($stu ? 'exists (id=' . (int)($stu['id'] ?? 0) . ')' : 'not found'));
         if (!$stu) {
+            error_log('Creating student record for user_id=' . $userId);
             $level = db_query_one('SELECT id FROM levels ORDER BY level_order LIMIT 1');
             $levelId = $level ? (int)$level['id'] : 1;
             $studentNum = (int)(db_query_one('SELECT COUNT(*) as c FROM students')['c'] ?? 0) + 1;
             $studId = function_exists('generate_student_id') ? generate_student_id(date('Y'), 'GEN', $studentNum) : ('ST' . date('y') . str_pad((string)$studentNum, 4, '0', STR_PAD_LEFT));
-            db_execute('INSERT INTO students (student_id, first_name, last_name, email, phone, date_of_birth, address, current_level_id, user_id, department_id, program_id, enrollment_date, status, gpa, created_at, updated_at) VALUES
+            
+            // Ensure department_id is valid
+            $deptId = (int)($app['department_id'] ?? 0);
+            if ($deptId <= 0) {
+                $dept = db_query_one('SELECT id FROM departments LIMIT 1');
+                $deptId = $dept ? (int)$dept['id'] : 1;
+            }
+            
+            error_log('Student INSERT params: studId=' . $studId . ', levelId=' . $levelId . ', deptId=' . $deptId . ', programId=' . (int)($app['program_id'] ?? 0));
+            
+            $result = db_execute('INSERT INTO students (student_id, first_name, last_name, email, phone, date_of_birth, address, current_level_id, user_id, department_id, program_id, enrollment_date, status, gpa, created_at, updated_at) VALUES
                 (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, CURDATE(), "active", 0.00, NOW(), NOW())', [
-                $studId, $app['first_name'], $app['last_name'], $app['prospect_email'], $app['phone'], $levelId, $userId, (int)$app['department_id'], (int)$app['program_id']
+                $studId, $app['first_name'], $app['last_name'], $app['prospect_email'], $app['phone'], $levelId, $userId, $deptId, (int)($app['program_id'] ?? 0)
             ]);
+            
+            error_log('Student INSERT result: ' . ($result ? 'success' : 'failed'));
+            
+            if (!$result) {
+                error_log('Failed to create student record for user_id: ' . $userId . 
+                    ', student_id: ' . $studId . 
+                    ', first_name: ' . $app['first_name'] . 
+                    ', last_name: ' . $app['last_name']);
+            } else {
+                // Get the newly created student ID
+                $stu = db_query_one('SELECT id FROM students WHERE user_id = ? LIMIT 1', [$userId]);
+                $studentId = $stu ? (int)$stu['id'] : null;
+                error_log('New student created: student_id=' . $studentId);
+            }
         }
 
         // Mark application accepted and send detailed instructions (always includes credentials)
@@ -2050,6 +2096,51 @@ function set_application_status(int $appId, string $status, ?string $offerNotes 
               . "Log in: " . $loginUrl . "\n\n"
               . "Regards,\nAdmissions Office";
         send_email($app['prospect_email'], '[Admissions] Application Accepted', $html, $text);
+        
+        // Auto-enroll student in current semester courses based on their level/program
+        if ($studentId) {
+            // Level-aware auto-enrollment
+            try {
+                $autoResult = auto_enroll_student_in_program_courses($studentId);
+                error_log('Auto-enroll on acceptance for student_id=' . $studentId . ': ' . json_encode($autoResult));
+            } catch (Exception $e) {
+                error_log('Auto-enroll error for student_id=' . $studentId . ': ' . $e->getMessage());
+            }
+
+            // Advisor assignment (unchanged logic, just in its own try/catch)
+            try {
+                $advisor = db_query_one(
+                    'SELECT i.id, COUNT(sa.id) as advisee_count
+                     FROM instructors i
+                     LEFT JOIN student_advisors sa ON i.id = sa.instructor_id AND sa.is_active = 1
+                     GROUP BY i.id
+                     ORDER BY advisee_count ASC, i.id ASC
+                     LIMIT 1'
+                );
+
+                error_log('Advisor assignment: advisor=' . ($advisor ? json_encode($advisor) : 'null'));
+
+                if ($advisor) {
+                    $existing = db_query_one(
+                        'SELECT id FROM student_advisors WHERE student_id = ? AND is_active = 1 LIMIT 1',
+                        [$studentId]
+                    );
+                    if (!$existing) {
+                        $advisorRes = db_execute(
+                            'INSERT INTO student_advisors (student_id, instructor_id, assigned_date, is_active, created_at) 
+                             VALUES (?, ?, CURDATE(), 1, NOW())',
+                            [$studentId, (int)$advisor['id']]
+                        );
+                        error_log('Advisor assigned: student_id=' . $studentId . ', advisor_id=' . (int)$advisor['id'] . ', result=' . ($advisorRes ? 'success' : 'failed'));
+                    }
+                }
+            } catch (Exception $e) {
+                error_log('Failed to assign advisor: ' . $e->getMessage());
+            }
+        }
+        
+        // Return credentials for display to admin
+        return ['success' => true, 'message' => 'Application accepted. Credentials sent to student.', 'username' => $username, 'password' => $tempPass, 'email' => $app['prospect_email']];
     } else {
         // under_review or rejected
         db_execute('UPDATE applications SET status = ?, decided_at = NOW() WHERE id = ?', [$status, $appId]);
@@ -2208,24 +2299,45 @@ function finalize_registration_by_key(string $key, int $userId): array
 function get_gpa_by_term(int $studentId): array
 {
     if ($studentId <= 0) return [];
-    return db_query(
-        'SELECT 
-            ay.year_name,
-            s.semester_name,
-            e.academic_year_id,
-            e.semester_id,
-            ROUND(SUM(e.grade_points) / NULLIF(SUM(c.credits), 0), 2) AS term_gpa,
-            SUM(c.credits) AS term_credits
-         FROM enrollments e
-         JOIN course_sections cs ON e.course_section_id = cs.id
-         JOIN courses c ON cs.course_id = c.id
-         JOIN academic_years ay ON e.academic_year_id = ay.id
-         JOIN semesters s ON e.semester_id = s.id
-         WHERE e.student_id = ? AND e.final_grade IS NOT NULL
-         GROUP BY e.academic_year_id, e.semester_id, ay.year_name, s.semester_name
-         ORDER BY ay.start_date, s.start_date',
-        [$studentId]
-    );
+
+    $sql = "SELECT 
+                ay.year_name,
+                s.semester_name,
+                le.academic_year_id,
+                le.semester_id,
+                ROUND(SUM(le.grade_points) / NULLIF(SUM(le.credits), 0), 2) AS term_gpa,
+                SUM(le.credits) AS term_credits
+            FROM (
+                SELECT
+                    e2.student_id,
+                    e2.academic_year_id,
+                    e2.semester_id,
+                    c2.course_code,
+                    c2.credits,
+                    e2.grade_points
+                FROM enrollments e2
+                JOIN course_sections cs2 ON e2.course_section_id = cs2.id
+                JOIN courses c2 ON cs2.course_id = c2.id
+                WHERE e2.student_id = ?
+                  AND e2.final_grade IS NOT NULL
+                  AND e2.id = (
+                        SELECT MAX(e3.id)
+                        FROM enrollments e3
+                        JOIN course_sections cs3 ON e3.course_section_id = cs3.id
+                        JOIN courses c3 ON cs3.course_id = c3.id
+                        WHERE e3.student_id = e2.student_id
+                          AND e3.academic_year_id = e2.academic_year_id
+                          AND e3.semester_id = e2.semester_id
+                          AND c3.course_code = c2.course_code
+                          AND e3.final_grade IS NOT NULL
+                    )
+            ) AS le
+            JOIN academic_years ay ON le.academic_year_id = ay.id
+            JOIN semesters s ON le.semester_id = s.id
+            GROUP BY le.academic_year_id, le.semester_id, ay.year_name, s.semester_name
+            ORDER BY ay.start_date, s.start_date";
+
+    return db_query($sql, [$studentId]);
 }
 
 // -----------------------------------------------------------------------------
@@ -2291,7 +2403,7 @@ function get_user_role(): ?string
 function login_user(string $username, string $password): array
 {
     $username = trim($username);
-    $user = db_query_one('SELECT * FROM users WHERE username = ? AND is_active = 1', [$username]);
+    $user = db_query_one('SELECT u.*, s.graduation_lock_at FROM users u LEFT JOIN students s ON s.user_id = u.id WHERE u.username = ? AND u.is_active = 1', [$username]);
 
     if (!$user) {
         return ['success' => false, 'message' => 'Invalid username or password.'];
@@ -2304,7 +2416,7 @@ function login_user(string $username, string $password): array
             [
                 $user['id'],
                 'graduation_login_blocked',
-                'user',
+                'student',
                 $user['id'],
                 json_encode(['is_active' => 1, 'graduation_lock_at' => $user['graduation_lock_at']], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 json_encode(['attempt' => 'login_after_graduation_lock'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
@@ -2706,7 +2818,7 @@ function generate_student_id(string $year, string $deptCode, int $sequence): str
     return strtoupper($year . $deptCode . str_pad((string)$sequence, 4, '0', STR_PAD_LEFT));
 }
 
-function enroll_student(int $studentId, int $sectionId, int $semesterId, int $academicYearId, bool $ignoreWindow = false): array
+function enroll_student(int $studentId, int $sectionId, int $semesterId, int $academicYearId, bool $ignoreWindow = false, bool $ignoreLevel = false): array
 {
     // Already enrolled in this section for this semester?
     $exists = db_query_one('SELECT id FROM enrollments WHERE student_id = ? AND course_section_id = ? AND semester_id = ?', [$studentId, $sectionId, $semesterId]);
@@ -2754,15 +2866,21 @@ function enroll_student(int $studentId, int $sectionId, int $semesterId, int $ac
         }
     }
 
-    // Level check: student level order must match course level order exactly
-    $studentLevel = db_query_one('SELECT s.current_level_id, s.program_id, l.level_order FROM students s JOIN levels l ON s.current_level_id = l.id WHERE s.id = ? LIMIT 1', [$studentId]);
-    $courseLevel = get_level_by_id((int)$row['level_id']);
-    if ($studentLevel && $courseLevel) {
-        $studentOrder = (int)$studentLevel['level_order'];
-        $courseOrder = (int)$courseLevel['level_order'];
-        if ($studentOrder !== $courseOrder) {
-            return ['success' => false, 'message' => 'You can only enroll in courses that match your current level.'];
+    // Level check: student level order must match course level order exactly (skip during setup/historical seeding)
+    $studentLevel = null;
+    if (!$ignoreLevel) {
+        $studentLevel = db_query_one('SELECT s.current_level_id, s.program_id, l.level_order FROM students s JOIN levels l ON s.current_level_id = l.id WHERE s.id = ? LIMIT 1', [$studentId]);
+        $courseLevel = get_level_by_id((int)$row['level_id']);
+        if ($studentLevel && $courseLevel) {
+            $studentOrder = (int)$studentLevel['level_order'];
+            $courseOrder = (int)$courseLevel['level_order'];
+            if ($studentOrder !== $courseOrder) {
+                return ['success' => false, 'message' => 'You can only enroll in courses that match your current level.'];
+            }
         }
+    } else {
+        // Still need to fetch student level for prerequisite checks even when ignoring level match
+        $studentLevel = db_query_one('SELECT s.current_level_id, s.program_id, l.level_order FROM students s JOIN levels l ON s.current_level_id = l.id WHERE s.id = ? LIMIT 1', [$studentId]);
     }
 
     // Prerequisites check: comma-separated course codes in courses.prerequisites
@@ -2987,11 +3105,11 @@ function get_current_user_profile(): ?array
             s.student_id,
             s.first_name,
             s.last_name,
-            s.email,
             s.phone,
             s.address,
             s.date_of_birth,
             s.enrollment_date,
+            s.graduation_lock_at,
             d.id AS department_id,
             d.dept_code,
             d.dept_name,
@@ -3002,8 +3120,7 @@ function get_current_user_profile(): ?array
             l.level_name,
             l.level_order,
             u.username,
-            u.email AS user_email,
-            u.graduation_lock_at
+            u.email AS user_email
         FROM students s
         JOIN users u ON s.user_id = u.id
         LEFT JOIN departments d ON s.department_id = d.id
@@ -3089,33 +3206,32 @@ function get_student_attendance_courses(int $studentId): array
 
 function get_student_gpa_summary(int $studentId): ?array
 {
-    $summary = db_query_one('SELECT calculated_gpa, total_credits, total_courses FROM student_gpa_view WHERE id = ?', [$studentId]);
-    if ($summary) {
-        return [
-            'calculated_gpa' => (float)($summary['calculated_gpa'] ?? 0),
-            'total_credits' => (int)($summary['total_credits'] ?? 0),
-            'total_courses' => (int)($summary['total_courses'] ?? 0),
-        ];
-    }
-
-    $fallback = db_query_one('SELECT
+    // Direct calculation from enrollments table (materialized views removed)
+    $result = db_query_one('SELECT
             SUM(e.grade_points * c.credits) AS total_points,
             SUM(c.credits) AS total_credits,
-            COUNT(e.id) AS total_courses
+            COUNT(DISTINCT c.id) AS total_courses
         FROM enrollments e
         JOIN course_sections cs ON e.course_section_id = cs.id
         JOIN courses c ON cs.course_id = c.id
-        WHERE e.student_id = ? AND e.final_grade IS NOT NULL', [$studentId]);
+        WHERE e.student_id = ?
+          AND e.final_grade IS NOT NULL
+          AND e.semester_id = (
+              SELECT MAX(e2.semester_id)
+              FROM enrollments e2
+              WHERE e2.student_id = e.student_id
+                AND e2.final_grade IS NOT NULL
+          )', [$studentId]);
 
-    if (!$fallback || !$fallback['total_credits']) {
+    if (!$result || !$result['total_credits']) {
         return null;
     }
 
-    $gpa = $fallback['total_points'] / $fallback['total_credits'];
+    $gpa = $result['total_points'] / $result['total_credits'];
     return [
         'calculated_gpa' => round($gpa, 2),
-        'total_credits' => (int)$fallback['total_credits'],
-        'total_courses' => (int)$fallback['total_courses'],
+        'total_credits' => (int)$result['total_credits'],
+        'total_courses' => (int)$result['total_courses'],
     ];
 }
 
@@ -3226,7 +3342,19 @@ function get_student_transcript(int $studentId): array
             JOIN courses c ON cs.course_id = c.id
             JOIN semesters sem ON e.semester_id = sem.id
             JOIN academic_years ay ON e.academic_year_id = ay.id
-            WHERE e.student_id = ? AND e.final_grade IS NOT NULL
+            WHERE e.student_id = ?
+              AND e.final_grade IS NOT NULL
+              AND e.id = (
+                    SELECT MAX(e2.id)
+                    FROM enrollments e2
+                    JOIN course_sections cs2 ON e2.course_section_id = cs2.id
+                    JOIN courses c2 ON cs2.course_id = c2.id
+                    WHERE e2.student_id = e.student_id
+                      AND e2.academic_year_id = e.academic_year_id
+                      AND e2.semester_id = e.semester_id
+                      AND c2.course_code = c.course_code
+                      AND e2.final_grade IS NOT NULL
+              )
             ORDER BY ay.year_name, sem.semester_name, c.course_code";
 
     return db_query($sql, [$studentId]);
@@ -3266,11 +3394,12 @@ function get_grade_points_for_letter(string $letter): float
 function calculate_enrollment_final_grade(int $enrollmentId): array
 {
     $enrollmentInfo = db_query_one(
-        'SELECT e.student_id, s.user_id, s.status AS student_status, l.level_order, u.graduation_lock_at
+        'SELECT e.student_id, s.user_id, s.status AS student_status, l.level_order, s.graduation_lock_at, e.semester_id, sem.end_date AS semester_end_date
          FROM enrollments e
          JOIN students s ON s.id = e.student_id
          LEFT JOIN users u ON u.id = s.user_id
          LEFT JOIN levels l ON l.id = s.current_level_id
+         LEFT JOIN semesters sem ON sem.id = e.semester_id
          WHERE e.id = ?
          LIMIT 1',
         [$enrollmentId]
@@ -3307,11 +3436,25 @@ function calculate_enrollment_final_grade(int $enrollmentId): array
     $letter = get_grade_letter($finalPercentage);
     $gradePoints = get_grade_points_for_letter($letter);
 
+    // Default status: ongoing (enrolled)
     $status = 'enrolled';
+
+    // If the semester end date has passed, mark enrollment completed
+    if (!empty($enrollmentInfo['semester_end_date'])) {
+        $semEndTs = strtotime($enrollmentInfo['semester_end_date']);
+        if ($semEndTs !== false && $semEndTs <= time()) {
+            $status = 'completed';
+        }
+    } else {
+        // Fallback: if no semester info, mark completed so historical seeding results are visible
+        $status = 'completed';
+    }
+
     $isGraduating = false;
     if ($enrollmentInfo && (int)($enrollmentInfo['level_order'] ?? 0) >= 4) {
-        $status = 'completed';
         $isGraduating = true;
+        // graduating students should also have completed status
+        $status = 'completed';
     }
 
     db_execute('UPDATE enrollments SET final_grade = ?, grade_points = ?, status = ? WHERE id = ?', [$letter, $gradePoints, $status, $enrollmentId]);
@@ -3335,7 +3478,7 @@ function calculate_enrollment_final_grade(int $enrollmentId): array
                     $applyLock = $existingLock;
                 }
             }
-            db_execute('UPDATE users SET graduation_lock_at = ? WHERE id = ?', [$applyLock, $userId]);
+            db_execute('UPDATE students SET graduation_lock_at = ? WHERE user_id = ?', [$applyLock, $userId]);
         }
     }
 
@@ -3607,7 +3750,7 @@ function get_instructor_profile(int $userId): ?array
 function update_instructor_contact(int $userId, string $email, ?string $phone): void
 {
     db_execute('UPDATE users SET email = ? WHERE id = ?', [$email, $userId]);
-    db_execute('UPDATE instructors SET email = ?, phone = ? WHERE user_id = ?', [$email, $phone, $userId]);
+    db_execute('UPDATE instructors SET phone = ? WHERE user_id = ?', [$phone, $userId]);
 }
 
 function update_instructor_password(int $userId, string $currentPassword, string $newPassword): array
@@ -3826,4 +3969,129 @@ function get_user_ids_for_audience(array $roles, ?int $departmentId = null, ?int
         foreach ($rows as $r) { $ids[] = (int)$r['id']; }
     }
     return array_values(array_unique($ids));
+}
+
+/**
+ * Auto-enroll a student in current semester courses based on their level
+ * Respects academic progression: Level 100 -> 200 -> 300 -> 400
+ * Assigns courses matching the student's current level
+ */
+function auto_enroll_student_in_program_courses(int $studentId): array
+{
+    $student = db_query_one(
+        'SELECT s.id, s.program_id, s.current_level_id, s.user_id, l.level_order 
+         FROM students s 
+         JOIN levels l ON s.current_level_id = l.id 
+         WHERE s.id = ? LIMIT 1',
+        [$studentId]
+    );
+    if (!$student) {
+        return ['success' => false, 'message' => 'Student not found'];
+    }
+
+    if (!$student['program_id']) {
+        return ['success' => false, 'message' => 'Student has no program assigned'];
+    }
+
+    // Get current semester
+    $currentSem = db_query_one(
+        'SELECT s.id, s.academic_year_id FROM semesters s 
+         JOIN academic_years ay ON s.academic_year_id = ay.id 
+         WHERE ay.is_current = 1 AND s.is_current = 1 LIMIT 1'
+    );
+
+    if (!$currentSem) {
+        return ['success' => false, 'message' => 'No current semester found'];
+    }
+
+    // Get program courses for student's CURRENT LEVEL in current semester
+    // term_number maps to level_order: term 1 = level 100, term 2 = level 200, etc.
+    $levelOrder = (int)$student['level_order'];
+    $programCourses = db_query(
+        'SELECT cs.id, c.course_code FROM course_sections cs
+         JOIN courses c ON cs.course_id = c.id
+         JOIN program_courses pc ON c.id = pc.course_id
+         WHERE pc.program_id = ? 
+           AND pc.term_number = ? 
+           AND cs.semester_id = ? 
+           AND cs.academic_year_id = ?',
+        [(int)$student['program_id'], $levelOrder, (int)$currentSem['id'], (int)$currentSem['academic_year_id']]
+    );
+
+    if (empty($programCourses)) {
+        return ['success' => false, 'message' => "No courses found for student's level ($levelOrder) in current semester"];
+    }
+
+    $enrolledCount = 0;
+    $failedCount = 0;
+    $failedCourses = [];
+
+    foreach ($programCourses as $course) {
+        // Check if already enrolled
+        $existing = db_query_one(
+            'SELECT id FROM enrollments WHERE student_id = ? AND course_section_id = ? LIMIT 1',
+            [$studentId, (int)$course['id']]
+        );
+
+        if (!$existing) {
+            $enrollRes = enroll_student($studentId, (int)$course['id'], (int)$currentSem['id'], (int)$currentSem['academic_year_id'], true, true);
+            if (isset($enrollRes['success']) && $enrollRes['success']) {
+                $enrolledCount++;
+            } else {
+                $failedCount++;
+                $failedCourses[] = $course['course_code'];
+            }
+        }
+    }
+
+    return [
+        'success' => $enrolledCount > 0,
+        'message' => "Enrolled in $enrolledCount courses for Level $levelOrder" . ($failedCount > 0 ? ", $failedCount failed: " . implode(', ', $failedCourses) : ''),
+        'enrolled' => $enrolledCount,
+        'failed' => $failedCount,
+        'level' => $levelOrder
+    ];
+}
+
+/**
+ * Promote a student to the next academic level
+ * Called when a student completes their current level
+ */
+function promote_student_to_next_level(int $studentId): array
+{
+    $student = db_query_one(
+        'SELECT s.id, s.current_level_id, l.level_order 
+         FROM students s 
+         JOIN levels l ON s.current_level_id = l.id 
+         WHERE s.id = ? LIMIT 1',
+        [$studentId]
+    );
+
+    if (!$student) {
+        return ['success' => false, 'message' => 'Student not found'];
+    }
+
+    $currentOrder = (int)$student['level_order'];
+    if ($currentOrder >= 4) {
+        return ['success' => false, 'message' => 'Student is already at maximum level (400)'];
+    }
+
+    // Get next level
+    $nextLevel = db_query_one(
+        'SELECT id FROM levels WHERE level_order = ? LIMIT 1',
+        [$currentOrder + 1]
+    );
+
+    if (!$nextLevel) {
+        return ['success' => false, 'message' => 'Next level not found'];
+    }
+
+    // Update student's level
+    db_execute('UPDATE students SET current_level_id = ? WHERE id = ?', [(int)$nextLevel['id'], $studentId]);
+
+    return [
+        'success' => true,
+        'message' => "Student promoted from Level " . ($currentOrder * 100) . " to Level " . (($currentOrder + 1) * 100),
+        'new_level' => ($currentOrder + 1) * 100
+    ];
 }

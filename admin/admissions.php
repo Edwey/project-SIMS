@@ -10,6 +10,7 @@ $q = isset($_GET['q']) ? trim($_GET['q']) : '';
 $programId = isset($_GET['program_id']) ? (int)$_GET['program_id'] : null;
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $pageSize = 10;
+$credentialsToDisplay = null;
 
 // Fetch programs for filter dropdown
 $programs = get_programs();
@@ -60,12 +61,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Single row actions
     if ($appId > 0 && isset($map[$action])) {
         $res = set_application_status($appId, $map[$action], $offerNotes);
-        set_flash_message($res['success'] ? 'success' : 'error', $res['message']);
-        $redir = '/admin/admissions.php?status=' . urlencode($status);
-        if ($q !== '') { $redir .= '&q=' . urlencode($q); }
-        if ($programId) { $redir .= '&program_id=' . (int)$programId; }
-        $redir .= '&page=' . (int)$page;
-        redirect($redir);
+        if ($action === 'accept' && !empty($res['username']) && !empty($res['password'])) {
+            $credentialsToDisplay = $res;
+            set_flash_message('success', $res['message'] . ' <strong>Username:</strong> ' . htmlspecialchars($res['username']) . ' <strong>Password:</strong> ' . htmlspecialchars($res['password']));
+        } else {
+            set_flash_message($res['success'] ? 'success' : 'error', $res['message']);
+        }
+        if (!$credentialsToDisplay) {
+            $redir = '/admin/admissions.php?status=' . urlencode($status);
+            if ($q !== '') { $redir .= '&q=' . urlencode($q); }
+            if ($programId) { $redir .= '&program_id=' . (int)$programId; }
+            $redir .= '&page=' . (int)$page;
+            redirect($redir);
+        }
     }
 }
 $pageTitle = 'Admissions';
@@ -189,5 +197,31 @@ render_flash_messages();
     <?php endif; ?>
   </div>
 </div>
+
+<?php if ($credentialsToDisplay): ?>
+<!-- Credentials Modal -->
+<div class="modal fade" id="credentialsModal" tabindex="-1" aria-hidden="false" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Student Account Created</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p><strong>Application accepted!</strong> A new student account has been created with the following credentials:</p>
+        <div class="alert alert-info">
+          <p class="mb-1"><strong>Email:</strong> <code><?php echo htmlspecialchars($credentialsToDisplay['email']); ?></code></p>
+          <p class="mb-1"><strong>Username:</strong> <code><?php echo htmlspecialchars($credentialsToDisplay['username']); ?></code></p>
+          <p class="mb-0"><strong>Temporary Password:</strong> <code><?php echo htmlspecialchars($credentialsToDisplay['password']); ?></code></p>
+        </div>
+        <p class="text-muted small">These credentials have been sent to the student's email. They will be prompted to change their password on first login.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 
 <?php include __DIR__ . '/footer.php'; ?>

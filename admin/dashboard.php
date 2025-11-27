@@ -108,10 +108,10 @@ try {
                 </div>
                 <div class="card-body">
                     <div class="d-flex flex-wrap gap-2">
-                        <a href="<?php echo SITE_URL; ?>/admin/manage_departments.php" class="btn btn-outline-primary"><i class="fas fa-building me-1"></i>Manage Departments</a>
-                        <a href="<?php echo SITE_URL; ?>/admin/manage_courses.php" class="btn btn-outline-primary"><i class="fas fa-book me-1"></i>Manage Courses</a>
-                        <a href="<?php echo SITE_URL; ?>/admin/manage_semesters.php" class="btn btn-outline-primary"><i class="fas fa-calendar me-1"></i>Manage Semesters</a>
-                        <a href="<?php echo SITE_URL; ?>/admin/manage_instructors.php?show_unassigned=1" class="btn btn-outline-info">
+                        <a href="manage_departments.php" class="btn btn-outline-primary"><i class="fas fa-building me-1"></i>Manage Departments</a>
+                        <a href="manage_courses.php" class="btn btn-outline-primary"><i class="fas fa-book me-1"></i>Manage Courses</a>
+                        <a href="manage_semesters.php" class="btn btn-outline-primary"><i class="fas fa-calendar me-1"></i>Manage Semesters</a>
+                        <a href="manage_instructors.php?show_unassigned=1" class="btn btn-outline-info">
                             <i class="fas fa-user-slash"></i> View Unassigned Students (<?php echo (int)($unassignedCount['cnt'] ?? 0); ?>)
                         </a>
                     </div>

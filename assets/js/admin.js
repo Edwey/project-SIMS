@@ -6,6 +6,15 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Admin JS loaded');
 
+    // Auto-open credentials modal if it exists (for admissions accept action)
+    const credentialsModal = document.getElementById('credentialsModal');
+    if (credentialsModal) {
+        if (window.bootstrap && bootstrap.Modal) {
+            const modal = new bootstrap.Modal(credentialsModal);
+            modal.show();
+        }
+    }
+
     // Auto-open edit modal if data-edit-modal attribute is present on body
     const body = document.body;
     const editModalId = body.getAttribute('data-edit-modal');

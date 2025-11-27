@@ -30,6 +30,12 @@ The system covers the full lifecycle:
 Key message:
 Admins, instructors, and students all work in the same system, but each with their own view and permissions.
 
+Recent additions (demo notes):
+- Automatic advisor assignment on applicant acceptance (admissions flow inserts an advisor row when available).
+- `database/assign_missing_advisors.php` — idempotent CLI that finds students without an active advisor and assigns instructors (dry-run by default; use `--apply` to commit).
+- Seeder improvements: `database/setup.php` seeds historical enrollments with grades and marks them `completed` for realistic transcripts; it also supports a `--force` cleanup mode that removes seeded historical enrollments/grades and attempts to add a DB-level unique index to prevent duplicate enrollments.
+- Auto-enroll helper: `auto_enroll_student_in_program_courses()` enrolls a newly created student into current-semester program courses that match their level and obeys prerequisites/capacity.
+
 ------------------------------------------------------------
 3. Demo flow (what to show, in order)
 

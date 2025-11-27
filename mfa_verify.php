@@ -20,6 +20,11 @@ if ($pendingUserId <= 0 || ($startedAt && (time() - $startedAt) > 900)) { // 15 
     redirect(SITE_URL . '/login.php');
 }
 
+$debugOtp = null;
+if (defined('APP_DEBUG') && APP_DEBUG) {
+    $debugOtp = $_SESSION['debug_last_otp']['mfa'] ?? null;
+}
+
 $errors = [];
 
 // Handle resend request
@@ -122,6 +127,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <?php foreach (get_flash_messages('success') as $message): ?>
         <div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div>
       <?php endforeach; ?>
+      <?php if ($debugOtp): ?>
+        <div class="alert alert-info">
+          <strong>Debug Mode:</strong> Use code <code><?php echo htmlspecialchars($debugOtp); ?></code>
+        </div>
+      <?php endif; ?>
 
       <form method="POST" class="mb-3">
         <?php echo csrf_field(); ?>

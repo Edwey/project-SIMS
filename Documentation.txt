@@ -68,3 +68,19 @@ Implement scheduled exports/visual charts for analytics dashboards.
 Expand notifications beyond page refresh (e.g., digest emails or push).
 Evaluate infrastructure for optional real-time notification transport.
 
+Operational tools & seeding notes
+- `database/assign_missing_advisors.php` — idempotent CLI to assign instructors as advisors for students missing an active advisor. Dry-run by default; use `--apply` to commit assignments. This avoids needing to reseed when only advisor data is missing.
+- `database/setup.php` (seeder) improvements:
+	- Seeds historical enrollments with sample grades and marks them `completed` so transcripts show realistic history.
+	- Adds a `--force` option to clear seeded historical enrollments/grades (destructive: backup first) and recompute section counts. In force mode the script attempts to create a DB unique index to prevent duplicate student-section enrollments.
+	- Seeder now avoids creating duplicate course enrollments during seed runs by tracking per-student enrolled course ids.
+
+Quick operational commands (run from project root)
+ - Dry-run advisor assignment: `php database/assign_missing_advisors.php`
+ - Apply advisor assignments: `php database/assign_missing_advisors.php --apply`
+ - Force reseed cleanup (destructive — backup DB first): `php database/setup.php --force`
+
+Safety notes
+- Always backup your database before using `--force` or running destructive cleanup commands.
+- The unique index creation in the seeder will fail if duplicates still exist — run the duplicate-fixer script (`database/fix_duplicate_enrollments.php`) or the advisor assignment script first as appropriate.
+

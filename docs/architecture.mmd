@@ -1,0 +1,52 @@
+%% Project SIMS - High-level System Architecture (Mermaid)
+%% Save as docs/architecture.mmd and render with mermaid-cli or preview in VS Code
+graph LR
+  subgraph Clients
+    A[Admin Browser]\n(HTML/JS)
+    B[Instructor Browser]\n(HTML/JS)
+    C[Student Browser]\n(HTML/JS)
+    D[Operator CLI]\n(PowerShell)
+  end
+
+  subgraph Edge
+    LB[Apache / XAMPP] 
+  end
+
+  subgraph App[PHP Application - project-SIMS]
+    Web[index.php & routing]
+    UI[admin/, instructor/, student/ UIs]
+    INC[includes/ (functions.php, database.php, auth)]
+    CLI[database/*.php CLI scripts]
+  end
+
+  subgraph Data[Persistence & Services]
+    DB[MySQL Database]\n(schema.sql)
+    SMTP[SMTP (PHPMailer)]
+    FILE[Static assets / uploads]
+    BACKUP[Backups / Exports]
+  end
+
+  subgraph Ops[Scheduler / Background]
+    CRON[Cron / Scheduler]
+    WORKER[Optional background workers]
+  end
+
+  A -->|HTTPS| LB
+  B -->|HTTPS| LB
+  C -->|HTTPS| LB
+  D -->|CLI| CLI
+
+  LB --> Web
+  Web --> UI
+  Web --> INC
+  INC -->|PDO / SQL| DB
+  CLI -->|reads/writes| DB
+  INC -->|SMTP| SMTP
+  Web -->|serves| FILE
+  CRON --> CLI
+  WORKER --> INC
+  DB -->|backup| BACKUP
+
+  %% Notes: highlight key functions
+  classDef callout fill:#f7f7d9,stroke:#f0c36d
+  INC:::callout

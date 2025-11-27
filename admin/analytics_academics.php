@@ -34,19 +34,30 @@ if ($semesterId > 0) {
 }
 $whereClause = $filters ? (' AND ' . implode(' AND ', $filters)) : '';
 
-// GPA statistics (overall, per student)
+// GPA statistics (overall, per student) - Direct calculation from enrollments
 $gpaStats = db_query_one(
     'SELECT
-        AVG(g.calculated_gpa) AS avg_gpa,
-        SUM(CASE WHEN g.calculated_gpa >= 3.5 THEN 1 ELSE 0 END) AS bucket_35,
-        SUM(CASE WHEN g.calculated_gpa BETWEEN 3.0 AND 3.49 THEN 1 ELSE 0 END) AS bucket_30,
-        SUM(CASE WHEN g.calculated_gpa BETWEEN 2.5 AND 2.99 THEN 1 ELSE 0 END) AS bucket_25,
-        SUM(CASE WHEN g.calculated_gpa BETWEEN 2.0 AND 2.49 THEN 1 ELSE 0 END) AS bucket_20,
-        SUM(CASE WHEN g.calculated_gpa < 2.0 THEN 1 ELSE 0 END) AS bucket_low,
+        AVG(student_gpa) AS avg_gpa,
+        SUM(CASE WHEN student_gpa >= 3.5 THEN 1 ELSE 0 END) AS bucket_35,
+        SUM(CASE WHEN student_gpa BETWEEN 3.0 AND 3.49 THEN 1 ELSE 0 END) AS bucket_30,
+        SUM(CASE WHEN student_gpa BETWEEN 2.5 AND 2.99 THEN 1 ELSE 0 END) AS bucket_25,
+        SUM(CASE WHEN student_gpa BETWEEN 2.0 AND 2.49 THEN 1 ELSE 0 END) AS bucket_20,
+        SUM(CASE WHEN student_gpa < 2.0 THEN 1 ELSE 0 END) AS bucket_low,
         COUNT(*) AS student_count
-     FROM student_gpa_view g
-     JOIN students s ON s.id = g.id
-     WHERE 1=1' . ($programId > 0 ? ' AND s.program_id = ?' : ''),
+     FROM (
+         SELECT 
+             s.id,
+             s.program_id,
+             SUM(e.grade_points * c.credits) / SUM(c.credits) AS student_gpa
+         FROM students s
+         JOIN enrollments e ON e.student_id = s.id
+         JOIN course_sections cs ON e.course_section_id = cs.id
+         JOIN courses c ON cs.course_id = c.id
+         WHERE e.final_grade IS NOT NULL
+           AND s.status = "active"
+         GROUP BY s.id, s.program_id
+     ) AS student_gpas
+     WHERE 1=1' . ($programId > 0 ? ' AND program_id = ?' : ''),
     ($programId > 0 ? [$programId] : [])
 );
 
