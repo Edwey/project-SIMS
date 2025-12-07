@@ -42,9 +42,10 @@ if ($instructorId) { $upcomingClasses = db_query(
 }
 
 if ($instructorId) { $advisees = db_query(
-    "SELECT s.student_id, s.first_name, s.last_name, s.email
+    "SELECT s.student_id, s.first_name, s.last_name, u.email
      FROM student_advisors sa
      JOIN students s ON sa.student_id = s.id
+     JOIN users u ON u.id = s.user_id
      WHERE sa.instructor_id = ? AND sa.is_active = 1
      ORDER BY s.first_name",
     [$instructorId]

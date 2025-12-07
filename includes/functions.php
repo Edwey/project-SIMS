@@ -3590,9 +3590,10 @@ function get_section_enrollments(int $sectionId): array
                 s.student_id,
                 s.first_name,
                 s.last_name,
-                s.email
+                u.email
             FROM enrollments e
             JOIN students s ON e.student_id = s.id
+            JOIN users u ON u.id = s.user_id
             WHERE e.course_section_id = ?
             ORDER BY s.last_name, s.first_name";
 
@@ -3707,12 +3708,13 @@ function get_instructor_advisees(int $instructorId): array
                 s.student_id,
                 s.first_name,
                 s.last_name,
-                s.email,
+                u.email,
                 s.phone,
                 sa.assigned_date,
                 sa.is_active
             FROM student_advisors sa
             JOIN students s ON sa.student_id = s.id
+            JOIN users u ON u.id = s.user_id
             WHERE sa.instructor_id = ?
             ORDER BY s.last_name, s.first_name";
 

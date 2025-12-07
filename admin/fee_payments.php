@@ -20,14 +20,17 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     if ($semesterId > 0) { $where[] = 'fp.semester_id = ?'; $params[] = $semesterId; }
     if ($studentQuery !== '') {
         $like = '%' . $studentQuery . '%';
-        $where[] = '(s.student_id LIKE ? OR s.email LIKE ? OR s.first_name LIKE ? OR s.last_name LIKE ?)';
+        $where[] = '(s.student_id LIKE ? OR u.email LIKE ? OR s.first_name LIKE ? OR s.last_name LIKE ?)';
         array_push($params, $like, $like, $like, $like);
     }
     $whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
 
     $rows = db_query(
-        "SELECT fp.id, s.student_id, CONCAT(s.first_name,' ',s.last_name) AS student_name, fp.amount, fp.payment_date, fp.status, fp.payment_method, fp.transaction_id, fp.scholarship_amount
-         FROM fee_payments fp JOIN students s ON fp.student_id = s.id $whereSql ORDER BY fp.payment_date DESC",
+        "SELECT fp.id, s.student_id, CONCAT(s.first_name,' ',s.last_name) AS student_name, u.email, fp.amount, fp.payment_date, fp.status, fp.payment_method, fp.transaction_id, fp.scholarship_amount
+         FROM fee_payments fp 
+         JOIN students s ON fp.student_id = s.id 
+         JOIN users u ON u.id = s.user_id
+         $whereSql ORDER BY fp.payment_date DESC",
         $params
     );
 
@@ -118,7 +121,7 @@ if ($yearId > 0) { $where[] = 'fp.academic_year_id = ?'; $params[] = $yearId; }
 if ($semesterId > 0) { $where[] = 'fp.semester_id = ?'; $params[] = $semesterId; }
 if ($studentQuery !== '') {
     $like = '%' . $studentQuery . '%';
-    $where[] = '(s.student_id LIKE ? OR s.email LIKE ? OR s.first_name LIKE ? OR s.last_name LIKE ?)';
+    $where[] = '(s.student_id LIKE ? OR u.email LIKE ? OR s.first_name LIKE ? OR s.last_name LIKE ?)';
     array_push($params, $like, $like, $like, $like);
 }
 $whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';

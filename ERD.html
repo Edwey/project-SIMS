@@ -197,7 +197,7 @@
         </div>
 
         <div class="legend">
-            <h2> Legend</h2>
+            <h2>Legend</h2>
             <div class="legend-grid">
                 <div class="legend-item">
                     <span class="legend-icon">🔑</span>
@@ -209,11 +209,7 @@
                 </div>
                 <div class="legend-item">
                     <span class="legend-icon">🌟</span>
-                    <span class="legend-text">Unique Constraint</span>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-icon">||--o{</span>
-                    <span class="legend-text">One-to-Many Relationship</span>
+                    <span class="legend-text">Unique</span>
                 </div>
             </div>
         </div>
@@ -223,47 +219,54 @@
                 <pre class="mermaid">
 erDiagram
     %% Core Authentication
-    users ||--o{ students : "🔑 user_id"
-    users ||--o{ instructors : "🔑 user_id"
+    users ||--o{ students : ""
+    users ||--o{ instructors : ""
 
     %% Academic Structure
-    departments ||--o{ students : "🔑 department_id"
-    departments ||--o{ instructors : "🔑 department_id"
-    departments ||--o{ courses : "🔑 department_id"
+    departments ||--o{ students : ""
+    departments ||--o{ instructors : ""
+    departments ||--o{ courses : ""
     
-    levels ||--o{ students : "🔑 current_level_id"
-    levels ||--o{ courses : "🔑 level_id"
+    levels ||--o{ students : ""
+    levels ||--o{ courses : ""
     
-    courses ||--o{ course_sections : "🔑 course_id"
+    courses ||--o{ course_sections : ""
     
     %% Time Organization
-    academic_years ||--o{ semesters : "🔑 academic_year_id"
-    academic_years ||--o{ course_sections : "🔑 academic_year_id"
-    academic_years ||--o{ enrollments : "🔑 academic_year_id"
+    academic_years ||--o{ semesters : ""
+    academic_years ||--o{ course_sections : ""
+    academic_years ||--o{ enrollments : ""
     
-    semesters ||--o{ course_sections : "🔑 semester_id"
-    semesters ||--o{ enrollments : "🔑 semester_id"
+    semesters ||--o{ course_sections : ""
+    semesters ||--o{ enrollments : ""
     
     %% Course Management
-    instructors ||--o{ course_sections : "🔑 instructor_id"
-    instructors ||--o{ attendance : "🔑 marked_by"
+    instructors ||--o{ course_sections : ""
+    instructors ||--o{ attendance : ""
     
-    course_sections ||--o{ enrollments : "🔑 course_section_id"
+    course_sections ||--o{ enrollments : ""
     
     %% Student Core Activities
-    students ||--o{ enrollments : "🔑 student_id"
+    students ||--o{ enrollments : ""
     
-    enrollments ||--o{ grades : "🔑 enrollment_id"
-    enrollments ||--o{ attendance : "🔑 enrollment_id"
+    enrollments ||--o{ grades : ""
+    enrollments ||--o{ attendance : ""
 
     users {
         int id "🔑 PK"
         string username "🌟 UNIQUE"
         string email "🌟 UNIQUE"
         string password_hash
-        enum role "admin|instructor|student"
+        boolean must_change_password
+        enum role
+        boolean mfa_email_enabled
         boolean is_active
         timestamp created_at
+        timestamp last_login
+        string reset_token
+        timestamp reset_expires
+        int login_attempts
+        timestamp locked_until
     }
 
     students {
@@ -277,9 +280,13 @@ erDiagram
         int current_level_id "🔗 FK"
         int user_id "🔗 FK"
         int department_id "🔗 FK"
+        int program_id "🔗 FK"
+        date enrollment_date
         enum status
         decimal gpa
-        date enrollment_date
+        datetime graduation_lock_at
+        timestamp created_at
+        timestamp updated_at
     }
 
     instructors {
@@ -290,6 +297,7 @@ erDiagram
         int department_id "🔗 FK"
         int user_id "🔗 FK"
         date hire_date
+        timestamp created_at
     }
 
     departments {
@@ -298,12 +306,14 @@ erDiagram
         string dept_name
         string dept_head
         text description
+        timestamp created_at
     }
 
     levels {
         int id "🔑 PK"
         string level_name
         int level_order
+        timestamp created_at
     }
 
     courses {
@@ -314,6 +324,8 @@ erDiagram
         int level_id "🔗 FK"
         int credits
         text description
+        text prerequisites
+        timestamp created_at
     }
 
     course_sections {
@@ -327,6 +339,7 @@ erDiagram
         int enrolled_count
         int semester_id "🔗 FK"
         int academic_year_id "🔗 FK"
+        timestamp created_at
     }
 
     academic_years {
@@ -335,6 +348,7 @@ erDiagram
         date start_date
         date end_date
         boolean is_current
+        timestamp created_at
     }
 
     semesters {
@@ -344,6 +358,11 @@ erDiagram
         date start_date
         date end_date
         boolean is_current
+        date registration_deadline
+        date exam_period_start
+        date exam_period_end
+        text notes
+        timestamp created_at
     }
 
     enrollments {
@@ -356,6 +375,8 @@ erDiagram
         decimal grade_points
         int semester_id "🔗 FK"
         int academic_year_id "🔗 FK"
+        timestamp created_at
+        timestamp updated_at
     }
 
     grades {
@@ -367,6 +388,8 @@ erDiagram
         decimal max_score
         decimal weight
         date grade_date
+        text notes
+        timestamp created_at
     }
 
     attendance {
@@ -376,13 +399,14 @@ erDiagram
         enum status
         text notes
         int marked_by "🔗 FK"
+        timestamp created_at
     }
                 </pre>
             </div>
         </div>
 
         <div class="info-section">
-            <h2 style="color: #495057; margin-bottom: 10px; font-size: 1.8em;">Database Overview</h2>
+            <h2 style="color: #495057; margin-bottom: 10px; font-size: 1.8em;">📊 Database Overview</h2>
             <p style="color: #6c757d; margin-bottom: 20px;">Core SIMS contains 13 essential tables organized into 6 functional categories</p>
             
             <div class="info-grid">

@@ -10,12 +10,13 @@ if ($q !== '') {
     // Search by student_id exact/like, email like, or name like
     $like = '%' . $q . '%';
     $rows = db_query(
-        "SELECT s.id, s.student_id, s.first_name, s.last_name, s.email, s.status,
+        "SELECT s.id, s.student_id, s.first_name, s.last_name, u.email, s.status,
                 l.level_name, d.dept_name
          FROM students s
+         JOIN users u ON u.id = s.user_id
          JOIN levels l ON l.id = s.current_level_id
          JOIN departments d ON d.id = s.department_id
-         WHERE s.student_id LIKE ? OR s.email LIKE ? OR s.first_name LIKE ? OR s.last_name LIKE ?
+         WHERE s.student_id LIKE ? OR u.email LIKE ? OR s.first_name LIKE ? OR s.last_name LIKE ?
          ORDER BY s.last_name ASC, s.first_name ASC
          LIMIT 10",
         [$like, $like, $like, $like]
